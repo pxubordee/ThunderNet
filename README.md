@@ -19,6 +19,8 @@ without giving up native Roblox remotes.</p>
 <img alt="Rojo 7.7.1" src="https://img.shields.io/badge/Rojo-7.7.1-orange">
 <img alt="Roblox Studio Play Solo verified" src="https://img.shields.io/badge/Roblox%20Studio-Play%20Solo%20verified-6C5CE7">
 <img alt="Benchmarks simulated and engine" src="https://img.shields.io/badge/benchmarks-simulated%20%2B%20engine-4CC9FF">
+<img alt="Version 0.1.0" src="https://img.shields.io/badge/version-0.1.0-blue">
+<img alt="License MIT" src="https://img.shields.io/badge/license-MIT-green">
 </p>
 
 </div>
@@ -55,7 +57,9 @@ remotes — with its costs measured and documented.
 | --- | --- |
 | Automated tests | **160 passed / 0 failed** — Luau CLI with a simulated Roblox environment |
 | Strict type analysis | **Clean** — cross-module `luau-analyze --mode=strict` |
-| Rojo build | **Succeeds** — `build/ThunderNet.rbxlx` |
+| Rojo build | **Succeeds** — dev place + `build/ThunderNet-0.1.0.rbxm` package |
+| Distribution package | **Built successfully** — draggable `.rbxm` at `build/ThunderNet-0.1.0.rbxm` |
+| GitHub release / Wally | Workflow and manifest included; **not published yet** (no remote/Wally token) |
 | Roblox Studio | **Play Solo run completed** — real local server and real remotes, one sample |
 | Real internet latency/bandwidth | **Not measured** — no live-player telemetry claimed |
 
@@ -73,6 +77,7 @@ unreliable messages one per call by default. See
 - [Configuration](#configuration)
 - [Benchmarks](#benchmarks)
 - [Testing](#testing)
+- [Releasing](#releasing)
 - [Architecture](#architecture)
 - [Project structure](#project-structure)
 - [Examples and docs](#examples-and-docs)
@@ -83,14 +88,52 @@ unreliable messages one per call by default. See
 
 ## Installation
 
-### Rojo (recommended)
+### Option 1 — drag and drop (easiest)
+
+Download the latest `ThunderNet-<version>.rbxm` from **GitHub Releases** and drag
+it into Roblox Studio's Explorer under `ReplicatedStorage`. You get a
+`ModuleScript` named `ThunderNet`:
+
+```lua
+local ThunderNet = require(game:GetService("ReplicatedStorage"):WaitForChild("ThunderNet"))
+```
+
+No Rojo or Wally required. The release file is built from this source tree. If
+no GitHub Release exists yet, build it locally with `./scripts/package.sh` and
+share `build/ThunderNet-<version>.rbxm`.
+
+### Option 2 — Wally
+
+The repo includes a Wally manifest for `pxubordee/thundernet`. Once it is
+published, add it to your `wally.toml` and install:
+
+```toml
+[dependencies]
+ThunderNet = "pxubordee/thundernet@0.1.0"
+```
+
+```bash
+wally install
+```
+
+Map the Wally `Packages` folder into `ReplicatedStorage` (for example
+`ReplicatedStorage.Packages`) and require `Packages.ThunderNet`. Publishing is a
+manual maintainer step; see [Releasing](#releasing).
+
+### Option 3 — Rojo from source (development)
+
+Clone the repo and serve the development project:
 
 ```bash
 cd ThunderNet
-rojo serve default.project.json
+rojo serve dev.project.json
 ```
 
-Connect with the Rojo plugin in Roblox Studio. The project maps:
+`dev.project.json` maps source, examples and tests for development.
+`default.project.json` is the package project used to build the `.rbxm` and the
+Wally blob — it is not the place-development project.
+
+Development mapping:
 
 | Source | Destination |
 | --- | --- |
@@ -99,12 +142,10 @@ Connect with the Rojo plugin in Roblox Studio. The project maps:
 | `examples/Client.client.luau` | `StarterPlayer.StarterPlayerScripts.ThunderNetExample` |
 | `tests/` | `ServerScriptService.ThunderNetTests` (remove for production) |
 
-### Manual Roblox Studio setup
+### Option 4 — Creator Store / Toolbox (optional, manual)
 
-Create a `ModuleScript` named `ThunderNet` under `ReplicatedStorage` and copy
-`src/` into it, preserving the folder layout. `src/init.luau` becomes the
-module script itself. Put the server example in `ServerScriptService` and the
-client example in `StarterPlayerScripts`.
+Upload `build/ThunderNet-<version>.rbxm` as a model asset if you want Toolbox
+distribution. This is not automated and nothing is published there yet.
 
 ---
 
@@ -408,6 +449,7 @@ simple guide: [BENCHMARKS-SIMPLE.md](BENCHMARKS-SIMPLE.md).
 ./scripts/check.sh   # tests + strict analysis + Rojo build
 ./scripts/test.sh    # 160-test suite only
 node scripts/analyze.mjs
+./scripts/package.sh # build the draggable .rbxm
 ./scripts/bench.sh   # CLI CPU benchmarks
 ```
 
@@ -420,6 +462,20 @@ lifecycle cleanup.
 The suite runs on a deterministic simulated Roblox environment. A separate
 Roblox Studio Play Solo benchmark session verified real remote delivery and
 caught the unreliable batching bug; engine runs are not part of `check.sh`.
+
+---
+
+## Releasing
+
+1. Update `VERSION` and `version` in `wally.toml` to the same value.
+2. Run `./scripts/check.sh` (it builds the dev place and the `.rbxm` package).
+3. Commit, tag `vX.Y.Z`, and push the tag.
+4. GitHub Actions builds and attaches `ThunderNet-X.Y.Z.rbxm` to the release.
+5. Publish to Wally with `wally publish` (requires a Wally account/token and the
+   matching `wally.toml`).
+6. Optional: upload the same `.rbxm` to the Creator Store.
+
+The release workflow only runs on pushed `v*` tags and needs a GitHub remote.
 
 ---
 
@@ -455,22 +511,20 @@ Read more: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) ·
 
 ```text
 ThunderNet/
-├── assets/                 thundernetlogo.png
-├── src/
-│   ├── init.luau           ThunderNet.Server / ThunderNet.Client
-│   ├── Core/               Network, Dispatcher, Protocol, Scheduler, RequestManager, Registry
-│   ├── Transport/          Reliable, Unreliable
-│   ├── Features/           Batcher, Middleware, Serializer, Compression, Channels, RetryManager
-│   ├── Security/           Validator, RateLimiter, Permissions
-│   ├── Utilities/          Signal, Promise, Janitor
-│   └── Types/              Shared config/stats types
-├── examples/               Server and client examples
-├── tests/                  Specs, support, CLI runner, Studio runner
-├── benchmarks/             CLI CPU benchmark, Studio benchmark script
-├── scripts/                embed / test / analyze / bench / check / build
-├── docs/                   Architecture, protocol, security, benchmarks
-├── BENCHMARKS-SIMPLE.md    Beginner-friendly benchmark guide
-├── default.project.json    Rojo project
+├── assets/                     thundernetlogo.png
+├── src/                        framework source
+├── examples/                   Server and client examples
+├── tests/                      Specs, support, CLI runner, Studio runner
+├── benchmarks/                 CLI CPU benchmark, Studio benchmark script
+├── scripts/                    embed / test / analyze / bench / check / build / package
+├── docs/                       Architecture, protocol, security, benchmarks
+├── .github/workflows/          Tag-driven release workflow
+├── default.project.json        Package project (builds the .rbxm)
+├── dev.project.json            Development place project (src + examples + tests)
+├── wally.toml                  Wally package manifest
+├── VERSION                     Release version
+├── LICENSE                     MIT
+├── BENCHMARKS-SIMPLE.md        Beginner-friendly benchmark guide
 └── README.md
 ```
 

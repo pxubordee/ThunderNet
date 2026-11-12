@@ -1,0 +1,9 @@
+[package]
+name = "pxubordee/thundernet"
+description = "Typed, server-authoritative networking for Roblox."
+version = "0.1.0"
+license = "MIT"
+authors = ["pxubordee"]
+realm = "shared"
+registry = "https://github.com/UpliftGames/wally-index"
+include = ["src", "default.project.json", "LICENSE", "README.md"]
