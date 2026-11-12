@@ -1,0 +1,106 @@
+--!nonstrict
+local ThunderNetFolder = game:GetService("ReplicatedStorage"):WaitForChild("ThunderNet")
+local TestHarness = require(script.Parent.Parent.Support.TestHarness)
+local Expect = require(script.Parent.Parent.Support.Expect)
+local Scheduler = require(ThunderNetFolder.Core.Scheduler)
+
+local describe, it = TestHarness.describe, TestHarness.it
+
+describe("Scheduler", function()
+	it("runs timers once their deadline is reached", function()
+		local scheduler = Scheduler.new()
+		local fired = {}
+		scheduler:After(0.1, function()
+			table.insert(fired, "a")
+		end)
+		scheduler:After(0.05, function()
+			table.insert(fired, "b")
+		end)
+
+		scheduler:Step(0.049)
+		Expect(fired):toHaveLength(0)
+		scheduler:Step(0.05)
+		Expect(fired):toEqual({ "b" })
+		scheduler:Step(0.1)
+		Expect(fired):toEqual({ "b", "a" })
+		scheduler:Step(2)
+		Expect(fired):toHaveLength(2)
+		scheduler:Destroy()
+	end)
+
+	it("orders same-deadline timers by insertion order", function()
+		local scheduler = Scheduler.new()
+		local order = {}
+		scheduler:After(0.1, function()
+			table.insert(order, 1)
+		end)
+		scheduler:After(0.1, function()
+			table.insert(order, 2)
+		end)
+		scheduler:After(0.1, function()
+			table.insert(order, 3)
+		end)
+		scheduler:Step(0.1)
+		Expect(order):toEqual({ 1, 2, 3 })
+		scheduler:Destroy()
+	end)
+
+	it("cancels pending timers", function()
+		local scheduler = Scheduler.new()
+		local calls = 0
+		local timer = scheduler:After(0.1, function()
+			calls = calls + 1
+		end)
+		Expect(scheduler:GetPendingCount()):toBe(1)
+		Expect(scheduler:Cancel(timer)):toBeTruthy()
+		Expect(scheduler:Cancel(timer)):toBeFalsy()
+		Expect(scheduler:GetPendingCount()):toBe(0)
+		scheduler:Step(1)
+		Expect(calls):toBe(0)
+		scheduler:Destroy()
+	end)
+
+	it("isolates timer callback errors", function()
+		local scheduler = Scheduler.new()
+		local later = false
+		scheduler:After(0.1, function()
+			error("timer failed", 0)
+		end)
+		scheduler:After(0.1, function()
+			later = true
+		end)
+		scheduler:Step(0.1)
+		Expect(later):toBeTruthy()
+		scheduler:Destroy()
+	end)
+
+	it("defers timers scheduled during a step to the next step", function()
+		local scheduler = Scheduler.new()
+		local nested = 0
+		scheduler:After(0.1, function()
+			scheduler:After(0, function()
+				nested = nested + 1
+			end)
+		end)
+		scheduler:Step(0.1)
+		Expect(nested):toBe(0)
+		scheduler:Step(0.1)
+		Expect(nested):toBe(1)
+		scheduler:Destroy()
+	end)
+
+	it("clears pending timers on Destroy and rejects new ones", function()
+		local scheduler = Scheduler.new()
+		local calls = 0
+		scheduler:After(0.1, function()
+			calls = calls + 1
+		end)
+		scheduler:Destroy()
+		Expect(scheduler:GetPendingCount()):toBe(0)
+		Expect(function()
+			scheduler:After(0.1, function() end)
+		end):toThrow()
+		scheduler:Step(1)
+		Expect(calls):toBe(0)
+	end)
+end)
