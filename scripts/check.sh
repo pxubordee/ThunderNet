@@ -6,5 +6,6 @@ node scripts/embed.mjs tests/cli/generated/AllModules.luau
 luau tests/cli/run.luau
 node scripts/analyze.mjs
 mkdir -p build
-rojo build default.project.json -o build/ThunderNet.rbxlx
-echo "check complete: build/ThunderNet.rbxlx"
+rojo build dev.project.json -o build/ThunderNet.rbxlx
+./scripts/package.sh
+echo "check complete: build/ThunderNet.rbxlx + package"
