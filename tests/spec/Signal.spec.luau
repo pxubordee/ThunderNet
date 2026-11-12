@@ -1,0 +1,111 @@
+--!nonstrict
+local ThunderNetFolder = game:GetService("ReplicatedStorage"):WaitForChild("ThunderNet")
+local TestHarness = require(script.Parent.Parent.Support.TestHarness)
+local Expect = require(script.Parent.Parent.Support.Expect)
+local Signal = require(ThunderNetFolder.Utilities.Signal)
+
+local describe, it = TestHarness.describe, TestHarness.it
+
+describe("Signal", function()
+	it("delivers arguments to connected handlers in order", function()
+		local signal = Signal.new()
+		local received = {}
+		signal:Connect(function(a, b)
+			table.insert(received, { "first", a, b })
+		end)
+		signal:Connect(function(a, b)
+			table.insert(received, { "second", a, b })
+		end)
+		signal:Fire("x", 2)
+		Expect(received):toHaveLength(2)
+		Expect(received[1][1]):toBe("first")
+		Expect(received[1][2]):toBe("x")
+		Expect(received[1][3]):toBe(2)
+		Expect(received[2][1]):toBe("second")
+		signal:Destroy()
+	end)
+
+	it("stops delivering after Disconnect and tolerates double disconnect", function()
+		local signal = Signal.new()
+		local calls = 0
+		local connection = signal:Connect(function()
+			calls = calls + 1
+		end)
+		signal:Fire()
+		connection:Disconnect()
+		connection:Disconnect()
+		signal:Fire()
+		Expect(calls):toBe(1)
+		Expect(signal:GetConnectionCount()):toBe(0)
+		signal:Destroy()
+	end)
+
+	it("skips handlers disconnected during an emission", function()
+		local signal = Signal.new()
+		local calls = {}
+		local secondConnection
+		signal:Connect(function()
+			table.insert(calls, 1)
+			secondConnection:Disconnect()
+		end)
+		secondConnection = signal:Connect(function()
+			table.insert(calls, 2)
+		end)
+		signal:Fire()
+		Expect(calls):toEqual({ 1 })
+		signal:Destroy()
+	end)
+
+	it("keeps a handler connected twice working independently", function()
+		local signal = Signal.new()
+		local calls = 0
+		local handler = function()
+			calls = calls + 1
+		end
+		local first = signal:Connect(handler)
+		signal:Connect(handler)
+		signal:Fire()
+		first:Disconnect()
+		signal:Fire()
+		Expect(calls):toBe(3)
+		signal:Destroy()
+	end)
+
+	it("disconnects every handler with DisconnectAll", function()
+		local signal = Signal.new()
+		local calls = 0
+		signal:Connect(function()
+			calls = calls + 1
+		end)
+		signal:Connect(function()
+			calls = calls + 1
+		end)
+		signal:DisconnectAll()
+		signal:Fire()
+		Expect(calls):toBe(0)
+		Expect(signal:GetConnectionCount()):toBe(0)
+		signal:Destroy()
+	end)
+
+	it("rejects connections and emissions once destroyed", function()
+		local signal = Signal.new()
+		signal:Destroy()
+		Expect(function()
+			signal:Connect(function() end)
+		end):toThrow()
+		Expect(function()
+			signal:Fire()
+		end):toThrow()
+	end)
+
+	it("surfaces handler errors to the emitter", function()
+		local signal = Signal.new()
+		signal:Connect(function()
+			error("boom", 0)
+		end)
+		Expect(function()
+			signal:Fire()
+		end):toThrow()
+		signal:Destroy()
+	end)
+end)

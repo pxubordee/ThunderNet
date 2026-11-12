@@ -1,0 +1,42 @@
+{
+  "name": "ThunderNet",
+  "tree": {
+    "$className": "DataModel",
+    "ReplicatedStorage": {
+      "$className": "ReplicatedStorage",
+      "ThunderNet": {
+        "$path": "src"
+      }
+    },
+    "ServerScriptService": {
+      "$className": "ServerScriptService",
+      "ThunderNetExamples": {
+        "$className": "Folder",
+        "Server": {
+          "$path": "examples/Server.server.luau"
+        }
+      },
+      "ThunderNetTests": {
+        "$className": "Folder",
+        "Support": {
+          "$path": "tests/support"
+        },
+        "Spec": {
+          "$path": "tests/spec"
+        },
+        "run": {
+          "$path": "tests/run.server.luau"
+        }
+      }
+    },
+    "StarterPlayer": {
+      "$className": "StarterPlayer",
+      "StarterPlayerScripts": {
+        "$className": "StarterPlayerScripts",
+        "ThunderNetExample": {
+          "$path": "examples/Client.client.luau"
+        }
+      }
+    }
+  }
+}

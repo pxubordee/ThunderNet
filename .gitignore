@@ -1,0 +1,9 @@
+build/
+tests/cli/generated/
+benchmarks/cli/generated/
+.DS_Store
+*.rbxl
+*.rbxlx
+*.rbxm
+*.rbxmx
+.analyze/
