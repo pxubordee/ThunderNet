@@ -4,6 +4,7 @@
 -- keeps this module free of transport and batching concerns.
 
 local Signal = require(script.Parent.Parent.Utilities.Signal)
+local Middleware = require(script.Parent.Parent.Features.Middleware)
 
 local Registry = {}
 Registry.__index = Registry
@@ -19,6 +20,7 @@ export type EventOptions = {
 	Schema: any?,
 	Validate: ((data: any) -> (boolean, string?))?,
 	RateLimit: { Rate: number, Burst: number }?,
+	Middleware: { Middleware.MiddlewareFunction }?,
 }
 
 export type SendHook = (
@@ -56,6 +58,7 @@ type EventState = {
 	_Unreliable: boolean,
 	_Permission: Permission?,
 	_Registry: any,
+	_Middleware: Middleware.Middleware,
 	OnServerEvent: Signal.Signal,
 	OnClientEvent: Signal.Signal,
 }
@@ -72,6 +75,10 @@ export type Event = EventState & {
 	SetPermission: (self: Event, permission: Permission?) -> (),
 	GetPermission: (self: Event) -> Permission?,
 	GetOptions: (self: Event) -> EventOptions,
+	Use: (self: Event, middleware: Middleware.MiddlewareFunction) -> number,
+	Unuse: (self: Event, token: number) -> boolean,
+	GetMiddlewareCount: (self: Event) -> number,
+	RunMiddleware: (self: Event, context: Middleware.Context) -> (boolean, Middleware.Context?, any),
 }
 
 export type TypedEvent<T = any> = {
@@ -89,6 +96,10 @@ export type TypedEvent<T = any> = {
 	SetPermission: (self: TypedEvent<T>, permission: Permission?) -> (),
 	GetPermission: (self: TypedEvent<T>) -> Permission?,
 	GetOptions: (self: TypedEvent<T>) -> EventOptions,
+	Use: (self: TypedEvent<T>, middleware: (context: any, next: any) -> (any, any)) -> number,
+	Unuse: (self: TypedEvent<T>, token: number) -> boolean,
+	GetMiddlewareCount: (self: TypedEvent<T>) -> number,
+	RunMiddleware: (self: TypedEvent<T>, context: any) -> (boolean, any, any),
 }
 
 type State = {
@@ -197,6 +208,26 @@ local function getOptions(self: Event): EventOptions
 end
 EventClass.GetOptions = getOptions
 
+local function useMiddleware(self: Event, middleware: Middleware.MiddlewareFunction): number
+	return self._Middleware:Use(middleware)
+end
+EventClass.Use = useMiddleware
+
+local function unuseMiddleware(self: Event, token: number): boolean
+	return self._Middleware:Remove(token)
+end
+EventClass.Unuse = unuseMiddleware
+
+local function getMiddlewareCount(self: Event): number
+	return self._Middleware:GetCount()
+end
+EventClass.GetMiddlewareCount = getMiddlewareCount
+
+local function runMiddleware(self: Event, context: Middleware.Context): (boolean, Middleware.Context?, any)
+	return self._Middleware:Run(context)
+end
+EventClass.RunMiddleware = runMiddleware
+
 function Registry.new(side: Side, sendHook: SendHook): Registry
 	local self: Registry = setmetatable({
 		_side = side,
@@ -241,6 +272,13 @@ local function createEvent(self: Registry, name: string, options: EventOptions?)
 		return existing
 	end
 	local normalized = normalizeOptions(options)
+	local middlewarePipeline = Middleware.new()
+	local configuredMiddleware = normalized.Middleware
+	if configuredMiddleware ~= nil then
+		for _, middlewareFunction in ipairs(configuredMiddleware) do
+			middlewarePipeline:Use(middlewareFunction)
+		end
+	end
 	local event: Event = setmetatable({
 		Name = name,
 		_Options = normalized,
@@ -248,6 +286,7 @@ local function createEvent(self: Registry, name: string, options: EventOptions?)
 		_Unreliable = normalized.Unreliable == true,
 		_Permission = normalized.Permission,
 		_Registry = self,
+		_Middleware = middlewarePipeline,
 		OnServerEvent = Signal.new(),
 		OnClientEvent = Signal.new(),
 	}, EventClass) :: any
@@ -302,6 +341,7 @@ local function destroy(self: Registry)
 	end
 	self._destroyed = true
 	for _, event in pairs(self._events) do
+		event._Middleware:Destroy()
 		event.OnServerEvent:Destroy()
 		event.OnClientEvent:Destroy()
 	end

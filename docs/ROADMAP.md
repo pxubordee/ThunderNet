@@ -15,9 +15,9 @@ and defaults, and add power behind optional modules and configuration.
 - Per-destination batching with fairness, adaptive delay and reliable/unreliable lanes
 - RPC with timeouts, backoff, retries, dedupe cache, cancellation and promises
 - Middleware, stats, lifecycle cleanup
-- 182-test suite, strict analysis, Rojo build
+- 186-test suite, strict analysis, Rojo build
 - Milestone 1: presets, Init/typed helpers, FireMany/FireExcept, queue caps, Promise.all, validator and permission helpers
-- Milestone 2 (partial): per-request RPC options, protocol/config handshake validation, serializer native fallback
+- Milestone 2 (partial): per-request RPC options, protocol/config handshake validation, serializer native fallback, error/drop/rate-limit hooks, per-event inbound middleware, outbound event middleware
 - Roblox Studio Play Solo benchmark sample and beginner-friendly benchmark guide
 - Draggable `.rbxm` packaging, Wally manifest, MIT license, release workflow
 
@@ -49,8 +49,8 @@ is claimed unless a before/after benchmark is run.
 | Safe unreliable auto-batching under the ~900-byte cap | Planned — needs careful byte accounting and engine tests |
 | Handshake + event/config sync | Partial — protocol/codec validation shipped; event sync pending |
 | Per-request options (`Idempotent`, retries, timeout) | Done — Timeout, MaxAttempts, Idempotent |
-| Per-event and outbound middleware | Planned — new pipeline semantics and tests |
-| Error/drop/rate-limit hooks | Planned — API surface and backpressure design |
+| Per-event and outbound middleware | Partial — per-event inbound and outbound event sends shipped; RPC outbound middleware pending |
+| Error/drop/rate-limit hooks | Done — `OnError`, `OnDrop`, `OnRateLimited` |
 | Serializer native fallback | Done — `FallbackToNative` with a one-time warning |
 | Debug overlay | Planned — separate client UI module |
 | RPC batching/Promise batch helpers | Promise.all shipped; further batch helpers planned |

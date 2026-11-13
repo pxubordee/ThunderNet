@@ -902,3 +902,195 @@ describe("Network handshake and serializer fallback", function()
 		end)
 	end)
 end)
+
+describe("Network hooks", function()
+	it("reports malformed packets, overload, and rate limits", function()
+		withNetworks(function(env)
+			local player = env.player("Alice")
+			local server = env.server({
+				RateLimit = { Rate = 1, Burst = 1 },
+				Batch = { MaxQueueDepth = 1 },
+			})
+			local client = env.client(player)
+			local drops = {}
+			local limits = {}
+			server.OnDrop:Connect(function(payload)
+				table.insert(drops, payload)
+			end)
+			server.OnRateLimited:Connect(function(payload)
+				table.insert(limits, payload)
+			end)
+
+			local view = env.remoteView(player)
+			view:FireServer({ 999 })
+			Runtime.advanceFrames(1)
+
+			local combat = server:CreateEvent("Combat")
+			local sender = client:GetEvent("Combat")
+			sender:FireServer({})
+			sender:FireServer({})
+			combat:FireClient(player, { Index = 1 })
+			combat:FireClient(player, { Index = 2 })
+			Runtime.advanceFrames(3)
+
+			local malformed = false
+			local overflow = false
+			for _, payload in ipairs(drops) do
+				if payload.Code == "MALFORMED_PACKET" then
+					malformed = true
+				elseif payload.Code == "QUEUE_OVERFLOW" then
+					overflow = true
+				end
+			end
+			Expect(malformed):toBeTruthy()
+			Expect(overflow):toBeTruthy()
+			Expect(#limits >= 1):toBeTruthy()
+			Expect(limits[1].Player):toBe(player)
+		end)
+	end)
+
+	it("reports request handler errors", function()
+		withNetworks(function(env)
+			local player = env.player("Alice")
+			local server = env.server()
+			local client = env.client(player)
+			local errors = {}
+			server.OnError:Connect(function(payload)
+				table.insert(errors, payload)
+			end)
+			server:OnRequest("Broken", function()
+				error("boom", 0)
+			end)
+			local promise = client:InvokeServer("Broken", {})
+			Expect(Runtime.waitFor(function()
+				return promise:GetStatus() ~= "Pending"
+			end, 2)):toBeTruthy()
+			local found = false
+			for _, payload in ipairs(errors) do
+				if payload.Code == "HANDLER_ERROR" then
+					found = true
+				end
+			end
+			Expect(found):toBeTruthy()
+			Expect(promise:GetStatus()):toBe("Rejected")
+		end)
+	end)
+end)
+
+describe("Scoped middleware", function()
+	it("runs per-event middleware and supports removal and rejection", function()
+		withNetworks(function(env)
+			local player = env.player("Alice")
+			local server = env.server()
+			local client = env.client(player)
+			local combat = server:CreateEvent("Combat", {
+				Middleware = {
+					function(context, next)
+						context.Data.Static = true
+						return next(context)
+					end,
+				},
+			})
+			local other = server:CreateEvent("Other")
+			local combatData = nil
+			local otherData = nil
+			combat.OnServerEvent:Connect(function(_, data)
+				combatData = data
+			end)
+			other.OnServerEvent:Connect(function(_, data)
+				otherData = data
+			end)
+			local senderCombat = client:GetEvent("Combat")
+			local senderOther = client:GetEvent("Other")
+			senderCombat:FireServer({})
+			senderOther:FireServer({})
+			Runtime.advanceFrames(3)
+			Expect(combatData.Static):toBe(true)
+			Expect(otherData.Static):toBeNil()
+
+			local token = combat:Use(function(context, next)
+				context.Data.Dynamic = true
+				return next(context)
+			end)
+			senderCombat:FireServer({})
+			Runtime.advanceFrames(3)
+			Expect(combatData.Dynamic):toBe(true)
+			combat:Unuse(token)
+			senderCombat:FireServer({})
+			Runtime.advanceFrames(3)
+			Expect(combatData.Dynamic):toBeNil()
+
+			local blocked = server:CreateEvent("Blocked", {
+				Middleware = {
+					function()
+						return false, "NOPE"
+					end,
+				},
+			})
+			local blockedCalls = 0
+			blocked.OnServerEvent:Connect(function()
+				blockedCalls += 1
+			end)
+			local drops = {}
+			server.OnDrop:Connect(function(payload)
+				table.insert(drops, payload)
+			end)
+			client:GetEvent("Blocked"):FireServer({})
+			Runtime.advanceFrames(2)
+			Expect(blockedCalls):toBe(0)
+			local rejected = false
+			for _, payload in ipairs(drops) do
+				if payload.Code == "MIDDLEWARE_REJECTED" and payload.Channel == "Blocked" then
+					rejected = true
+				end
+			end
+			Expect(rejected):toBeTruthy()
+		end)
+	end)
+
+	it("runs outbound middleware and supports removal and rejection", function()
+		withNetworks(function(env)
+			local player = env.player("Alice")
+			local server = env.server()
+			local client = env.client(player)
+			local combat = server:CreateEvent("Combat")
+			local received = nil
+			local receivedCount = 0
+			client:GetEvent("Combat").OnClientEvent:Connect(function(data)
+				received = data
+				receivedCount += 1
+			end)
+			local observedPlayer = nil
+			local token = server:UseOutbound(function(context, next)
+				if context.Channel == "Combat" then
+					context.Data.Outbound = true
+				end
+				observedPlayer = context.Player
+				return next(context)
+			end)
+			combat:FireClient(player, {})
+			Runtime.advanceFrames(3)
+			Expect(received.Outbound):toBe(true)
+			Expect(observedPlayer):toBe(player)
+
+			local blockedToken = server:UseOutbound(function()
+				return false, "BLOCKED"
+			end)
+			combat:FireClient(player, {})
+			Runtime.advanceFrames(3)
+			Expect(receivedCount):toBe(1)
+			Expect(server:GetStats().OutboundRejected):toBe(1)
+
+			server:UnuseOutbound(blockedToken)
+			combat:FireClient(player, {})
+			Runtime.advanceFrames(3)
+			Expect(receivedCount):toBe(2)
+			Expect(received.Outbound):toBe(true)
+
+			server:UnuseOutbound(token)
+			combat:FireClient(player, {})
+			Runtime.advanceFrames(3)
+			Expect(received.Outbound):toBeNil()
+		end)
+	end)
+end)
