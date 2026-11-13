@@ -4,6 +4,8 @@
 --   local ThunderNet = require(ReplicatedStorage.ThunderNet)
 --   local Net = ThunderNet.Server()  -- or ThunderNet.Client()
 
+local RunService = game:GetService("RunService")
+
 local Network = require(script.Core.Network)
 local Types = require(script.Types.Types)
 local Signal = require(script.Utilities.Signal)
@@ -19,6 +21,7 @@ export type Event = Network.Event
 export type TypedEvent<T = any> = Network.TypedEvent<T>
 export type PromiseOf<T = any> = Promise.PromiseOf<T>
 export type EventOptions = Network.EventOptions
+export type RequestOptions = Network.RequestOptions
 export type Timer = Network.Timer
 
 local ThunderNet = {
@@ -43,6 +46,17 @@ end
 
 function ThunderNet.Client(config: Types.NetworkConfig?): Network.Network
 	return Network.new("Client", config)
+end
+
+function ThunderNet.Init(config: Types.NetworkConfig?): Network.Network
+	if RunService:IsServer() then
+		return Network.new("Server", config)
+	end
+	return Network.new("Client", config)
+end
+
+function ThunderNet.Event<T>(net: Network.Network, name: string, options: Network.EventOptions?): Network.TypedEvent<T>
+	return net:CreateEvent(name, options) :: any
 end
 
 return ThunderNet

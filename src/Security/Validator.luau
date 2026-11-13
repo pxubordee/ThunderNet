@@ -57,6 +57,18 @@ function Validator.Optional(inner: Schema): Schema
 	return { Kind = "Optional", Inner = inner }
 end
 
+function Validator.Literal(expected: any): Schema
+	return { Kind = "Literal", Expected = expected }
+end
+
+function Validator.OneOf(schemas: { Schema }): Schema
+	return { Kind = "OneOf", Schemas = schemas }
+end
+
+function Validator.Map(keySchema: Schema, valueSchema: Schema): Schema
+	return { Kind = "Map", Key = keySchema, Value = valueSchema }
+end
+
 local function describeType(value: any): string
 	return typeof(value)
 end
@@ -74,6 +86,34 @@ local function validateValue(value: any, schema: Schema, path: string): (boolean
 		end
 		return validateValue(value, schema.Inner, path)
 	elseif kind == "Any" then
+		return true, nil
+	elseif kind == "Literal" then
+		if value == schema.Expected then
+			return true, nil
+		end
+		return false, withPath(path, "expected literal " .. tostring(schema.Expected))
+	elseif kind == "OneOf" then
+		for _, candidate in ipairs(schema.Schemas) do
+			local ok = validateValue(value, candidate, path)
+			if ok then
+				return true, nil
+			end
+		end
+		return false, withPath(path, "did not match any allowed schema")
+	elseif kind == "Map" then
+		if type(value) ~= "table" then
+			return false, withPath(path, "expected table, got " .. describeType(value))
+		end
+		for key, child in pairs(value) do
+			local keyOk = validateValue(key, schema.Key, path .. "{key}")
+			if not keyOk then
+				return false, withPath(path, "invalid map key " .. tostring(key))
+			end
+			local valueOk, valueErr = validateValue(child, schema.Value, path .. "." .. tostring(key))
+			if not valueOk then
+				return false, valueErr
+			end
+		end
 		return true, nil
 	elseif value == nil then
 		return false, withPath(path, "expected " .. tostring(kind) .. ", got nil")

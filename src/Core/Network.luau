@@ -21,7 +21,6 @@ local Serializer = require(script.Parent.Parent.Features.Serializer)
 local Compression = require(script.Parent.Parent.Features.Compression)
 local RateLimiter = require(script.Parent.Parent.Security.RateLimiter)
 local Validator = require(script.Parent.Parent.Security.Validator)
-local Signal = require(script.Parent.Parent.Utilities.Signal)
 local Promise = require(script.Parent.Parent.Utilities.Promise)
 local Janitor = require(script.Parent.Parent.Utilities.Janitor)
 
@@ -36,6 +35,7 @@ export type Event = Registry.Event
 export type TypedEvent<T = any> = Registry.TypedEvent<T>
 export type EventOptions = Registry.EventOptions
 export type Timer = Scheduler.Timer
+export type RequestOptions = RequestManager.RequestOptions
 
 type StatsCounters = {
 	PacketsSent: number,
@@ -43,6 +43,7 @@ type StatsCounters = {
 	MessagesSent: number,
 	MessagesReceived: number,
 	BatchesSent: number,
+	QueueOverflow: number,
 	BytesSentEstimate: number,
 	CompressionSavingsBytes: number,
 	MalformedPackets: number,
@@ -58,7 +59,56 @@ type StatsCounters = {
 }
 
 local SERVER_DESTINATION = "Server"
-local RESPONSE_PRIORITY = 2
+local PROTOCOL_VERSION = 1
+
+local PRESETS: { [string]: NetworkConfig } = {
+	Standard = {},
+	Minimal = {
+		Stats = false,
+		Batch = { MaxBatchSize = 32, MaxBatchBytes = 8192 },
+		Request = { MaxAttempts = 1 },
+		RateLimit = { Rate = 60, Burst = 120 },
+		Payload = { MaxBytes = 32768, MaxDepth = 6 },
+	},
+	Hardened = {
+		Stats = true,
+		Request = { DedupeTtl = 60, DedupeMaxEntries = 512 },
+		RateLimit = { Rate = 60, Burst = 120 },
+		Payload = { MaxBytes = 16384, MaxDepth = 6 },
+	},
+}
+
+local function deepCopy(value: any): any
+	if type(value) ~= "table" then
+		return value
+	end
+	local copy = {}
+	for key, child in pairs(value) do
+		copy[key] = deepCopy(child)
+	end
+	return copy
+end
+
+local function mergeInto(base: any, overrides: any)
+	for key, value in pairs(overrides) do
+		if type(value) == "table" and type(base[key]) == "table" then
+			mergeInto(base[key], value)
+		else
+			base[key] = deepCopy(value)
+		end
+	end
+end
+
+local function applyPreset(config: NetworkConfig): NetworkConfig
+	local presetName = config.Preset or "Standard"
+	local preset = PRESETS[presetName]
+	if preset == nil then
+		error(("Unknown Preset %q"):format(tostring(presetName)), 3)
+	end
+	local merged = deepCopy(preset) :: any
+	mergeInto(merged, config)
+	return merged :: NetworkConfig
+end
 
 type State = {
 	_side: Side,
@@ -67,6 +117,8 @@ type State = {
 	_stats: StatsCounters,
 	_statsEnabled: boolean,
 	_serializer: Serializer.Serializer,
+	_serializerFallback: boolean,
+	_serializerFallbackWarned: boolean,
 	_compression: Compression.Compression,
 	_compressionEnabled: boolean,
 	_protocolLimits: Protocol.Limits,
@@ -102,12 +154,18 @@ export type Network = State & {
 		name: string,
 		handler: (player: any, data: TRequest) -> TResult
 	) -> (),
-	InvokeServer: <TRequest, TResult>(self: Network, name: string, data: TRequest) -> Promise.PromiseOf<TResult>,
+	InvokeServer: <TRequest, TResult>(
+		self: Network,
+		name: string,
+		data: TRequest,
+		options: RequestOptions?
+	) -> Promise.PromiseOf<TResult>,
 	InvokeClient: <TRequest, TResult>(
 		self: Network,
 		player: any,
 		name: string,
-		data: TRequest
+		data: TRequest,
+		options: RequestOptions?
 	) -> Promise.PromiseOf<TResult>,
 	CreateChannel: (self: Network, name: string, defaults: EventOptions?) -> Channels.Channel,
 	After: (self: Network, seconds: number, callback: () -> ()) -> Timer,
@@ -200,8 +258,8 @@ function Network.new(side: Side, config: NetworkConfig?): Network
 	if side ~= "Server" and side ~= "Client" then
 		error("Network side must be \"Server\" or \"Client\"", 2)
 	end
-	local resolved = resolveConfig(config or {})
-	local fullConfig: NetworkConfig = config or {}
+	local fullConfig = applyPreset(config or {})
+	local resolved = resolveConfig(fullConfig)
 
 	local stats: StatsCounters = {
 		PacketsSent = 0,
@@ -209,6 +267,7 @@ function Network.new(side: Side, config: NetworkConfig?): Network
 		MessagesSent = 0,
 		MessagesReceived = 0,
 		BatchesSent = 0,
+		QueueOverflow = 0,
 		BytesSentEstimate = 0,
 		CompressionSavingsBytes = 0,
 		MalformedPackets = 0,
@@ -238,6 +297,8 @@ function Network.new(side: Side, config: NetworkConfig?): Network
 		_stats = stats,
 		_statsEnabled = resolved.StatsEnabled,
 		_serializer = serializer,
+		_serializerFallback = serializerConfig ~= nil and serializerConfig.FallbackToNative == true,
+		_serializerFallbackWarned = false,
 		_compression = compression,
 		_compressionEnabled = compressionEnabled,
 		_protocolLimits = resolved.ProtocolLimits,
@@ -306,6 +367,13 @@ function Network.new(side: Side, config: NetworkConfig?): Network
 		unreliableInstance.Name = "Unreliable"
 		unreliableInstance.Parent = folder
 
+		local configuration = Instance.new("Folder")
+		configuration.Name = "Configuration"
+		configuration:SetAttribute("ProtocolVersion", PROTOCOL_VERSION)
+		configuration:SetAttribute("SerializerEnabled", serializer:IsEnabled())
+		configuration:SetAttribute("CompressionEnabled", compressionEnabled)
+		configuration.Parent = folder
+
 		self._folder = folder
 		self._ownsRemotes = true
 		self._reliable = Reliable.new(reliableInstance)
@@ -325,6 +393,29 @@ function Network.new(side: Side, config: NetworkConfig?): Network
 		if folder == nil then
 			error(("ThunderNet remotes %q were not found; initialize the server first"):format(resolved.Name), 2)
 		end
+		local configuration = folder:WaitForChild("Configuration", 10)
+		if configuration == nil then
+			error("ThunderNet configuration was not found; initialize the server first", 2)
+		end
+		local version = configuration:GetAttribute("ProtocolVersion")
+		local versionDeadline = os.clock() + 2
+		while version == nil and os.clock() < versionDeadline do
+			task.wait(0)
+			version = configuration:GetAttribute("ProtocolVersion")
+		end
+		if version ~= PROTOCOL_VERSION then
+			error(("ThunderNet protocol version mismatch (server %s, client %s)"):format(
+				tostring(version),
+				tostring(PROTOCOL_VERSION)
+			), 2)
+		end
+		if configuration:GetAttribute("SerializerEnabled") ~= serializer:IsEnabled() then
+			error("ThunderNet Serializer configuration mismatch; enable or disable it on both sides", 2)
+		end
+		if configuration:GetAttribute("CompressionEnabled") ~= compressionEnabled then
+			error("ThunderNet Compression configuration mismatch; enable or disable it on both sides", 2)
+		end
+
 		local reliableInstance = folder:WaitForChild("Reliable", 10)
 		local unreliableInstance = folder:WaitForChild("Unreliable", 10)
 		if reliableInstance == nil or unreliableInstance == nil then
@@ -377,7 +468,18 @@ function Network._encodePayload(self: Network, data: any): (any, number, number)
 	local value = data
 	local flags = 0
 	if self._serializer:IsEnabled() then
-		value = self._serializer:Encode(data)
+		local ok, encoded = pcall(self._serializer.Encode, self._serializer, data)
+		if not ok then
+			if self._serializerFallback then
+				if not self._serializerFallbackWarned then
+					self._serializerFallbackWarned = true
+					warn("ThunderNet serializer fallback to native: " .. tostring(encoded))
+				end
+				return data, 0, Serializer.Measure(data, self._payloadLimits.MaxBytes)
+			end
+			error(encoded, 2)
+		end
+		value = encoded
 		flags = bit32.bor(flags, Protocol.Flags.Serialized)
 	end
 	if self._compressionEnabled and type(value) == "string" then
@@ -454,9 +556,12 @@ function Network._enqueue(self: Network, destination: any, envelope: Protocol.En
 	if self._destroyed then
 		error("Network is destroyed", 2)
 	end
+	if not self._batcher:Push(destination, envelope, priority, reliable, bytes, os.clock()) then
+		self._stats.QueueOverflow += 1
+		return
+	end
 	self._stats.MessagesByPriority[priority] += 1
 	self._stats.BytesSentEstimate += bytes
-	self._batcher:Push(destination, envelope, priority, reliable, bytes, os.clock())
 end
 
 function Network._sendEvent(self: Network, destination: any, channel: string, data: any, priority: number, reliable: boolean)
@@ -466,7 +571,29 @@ function Network._sendEvent(self: Network, destination: any, channel: string, da
 	local value, flags, bytes = self:_encodePayload(data)
 	local envelope = if flags ~= 0 then Protocol.Event(channel, value, flags) else Protocol.Event(channel, data)
 
-	if destination == "All" then
+	if type(destination) == "table" and destination.Kind ~= nil then
+		if self._side ~= "Server" then
+			error("Only the server can broadcast events", 3)
+		end
+		if destination.Kind == "Many" then
+			local players: any = destination.Players
+			if type(players) ~= "table" then
+				error("FireMany requires a list of players", 4)
+			end
+			for _, player in ipairs(players) do
+				self:_enqueue(player, envelope, priority, reliable, bytes)
+			end
+		elseif destination.Kind == "Except" then
+			local excluded = destination.Player
+			for _, player in ipairs(Players:GetPlayers()) do
+				if player ~= excluded then
+					self:_enqueue(player, envelope, priority, reliable, bytes)
+				end
+			end
+		else
+			error("Unknown broadcast destination", 4)
+		end
+	elseif destination == "All" then
 		if self._side ~= "Server" then
 			error("Only the server can broadcast events", 3)
 		end
@@ -596,20 +723,27 @@ function Network.OnRequest<TRequest, TResult>(self: Network,
 	self._registry:SetRequestHandler(name, handler :: any)
 end
 
-function Network.InvokeServer<TRequest, TResult>(self: Network, name: string, data: TRequest): Promise.PromiseOf<TResult>
+function Network.InvokeServer<TRequest, TResult>(
+	self: Network,
+	name: string,
+	data: TRequest,
+	options: RequestOptions?
+): Promise.PromiseOf<TResult>
 	if self._destroyed then
 		error("Network is destroyed", 2)
 	end
 	if self._side ~= "Client" then
 		error("InvokeServer can only be called from the client", 2)
 	end
-	return self._requestManager:Request(nil, name, data, os.clock()) :: any
+	return self._requestManager:Request(nil, name, data, os.clock(), options) :: any
 end
 
-function Network.InvokeClient<TRequest, TResult>(self: Network, 
+function Network.InvokeClient<TRequest, TResult>(
+	self: Network,
 	player: any,
 	name: string,
-	data: TRequest
+	data: TRequest,
+	options: RequestOptions?
 ): Promise.PromiseOf<TResult>
 	if self._destroyed then
 		error("Network is destroyed", 2)
@@ -620,7 +754,7 @@ function Network.InvokeClient<TRequest, TResult>(self: Network,
 	if player == nil then
 		error("InvokeClient requires a player", 2)
 	end
-	return self._requestManager:Request(player, name, data, os.clock()) :: any
+	return self._requestManager:Request(player, name, data, os.clock(), options) :: any
 end
 
 function Network.CreateChannel(self: Network, name: string, defaults: EventOptions?): Channels.Channel
@@ -653,6 +787,7 @@ function Network.GetStats(self: Network): NetworkStats
 		MessagesSent = counters.MessagesSent,
 		MessagesReceived = counters.MessagesReceived,
 		BatchesSent = batches,
+		QueueOverflow = counters.QueueOverflow,
 		AverageBatchSize = if batches > 0 then counters.MessagesSent / batches else 0,
 		BytesSentEstimate = counters.BytesSentEstimate,
 		CompressionSavingsBytes = counters.CompressionSavingsBytes,

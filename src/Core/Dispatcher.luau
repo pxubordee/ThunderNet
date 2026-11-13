@@ -162,19 +162,21 @@ local function dispatchEvent(self: Dispatcher, envelope: Protocol.Envelope, reli
 		end
 	end
 
-	local context: Middleware.Context = {
-		Data = data,
-		Channel = name,
-		Kind = "Event",
-		Side = config.Side,
-		Player = player,
-	}
-	local pipelineOk, finalContext = config.Middleware:Run(context)
-	if not pipelineOk then
-		stats.MiddlewareRejected += 1
-		return
+	if config.Middleware:GetCount() > 0 then
+		local context: Middleware.Context = {
+			Data = data,
+			Channel = name,
+			Kind = "Event",
+			Side = config.Side,
+			Player = player,
+		}
+		local pipelineOk, finalContext = config.Middleware:Run(context)
+		if not pipelineOk then
+			stats.MiddlewareRejected += 1
+			return
+		end
+		data = (finalContext :: Middleware.Context).Data
 	end
-	data = (finalContext :: Middleware.Context).Data
 
 	if config.Side == "Server" then
 		event.OnServerEvent:Fire(player, data)
@@ -230,31 +232,33 @@ local function dispatchRequest(self: Dispatcher, envelope: Protocol.Envelope, pl
 		return
 	end
 
-	local context: Middleware.Context = {
-		Data = data,
-		Channel = name,
-		Kind = "Request",
-		Side = config.Side,
-		Player = player,
-		RequestId = requestId,
-	}
-	local pipelineOk, finalContext, rejection = config.Middleware:Run(context)
-	if not pipelineOk then
-		stats.MiddlewareRejected += 1
-		local code = "REJECTED"
-		local message = "The request was rejected"
-		if type(rejection) == "table" then
-			if type(rejection.Code) == "string" then
-				code = rejection.Code
+	if config.Middleware:GetCount() > 0 then
+		local context: Middleware.Context = {
+			Data = data,
+			Channel = name,
+			Kind = "Request",
+			Side = config.Side,
+			Player = player,
+			RequestId = requestId,
+		}
+		local pipelineOk, finalContext, rejection = config.Middleware:Run(context)
+		if not pipelineOk then
+			stats.MiddlewareRejected += 1
+			local code = "REJECTED"
+			local message = "The request was rejected"
+			if type(rejection) == "table" then
+				if type(rejection.Code) == "string" then
+					code = rejection.Code
+				end
+				if type(rejection.Message) == "string" then
+					message = rejection.Message
+				end
 			end
-			if type(rejection.Message) == "string" then
-				message = rejection.Message
-			end
+			respondRequestError(self, player, incomingKey, requestId, code, message, now)
+			return
 		end
-		respondRequestError(self, player, incomingKey, requestId, code, message, now)
-		return
+		data = (finalContext :: Middleware.Context).Data
 	end
-	data = (finalContext :: Middleware.Context).Data
 
 	local handler = config.Registry:GetRequestHandler(name)
 	if handler == nil then

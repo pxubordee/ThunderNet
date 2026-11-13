@@ -86,6 +86,14 @@ end
 
 local instanceMethods = {}
 
+function instanceMethods:SetAttribute(name, value)
+	self._attributes[name] = value
+end
+
+function instanceMethods:GetAttribute(name)
+	return self._attributes[name]
+end
+
 function instanceMethods:FindFirstChild(name)
 	return self._children[name]
 end
@@ -310,6 +318,7 @@ function RobloxShim.new()
 			Parent = nil,
 			_children = {},
 			_childrenList = {},
+			_attributes = {},
 			_shim = self,
 			_destroyed = false,
 		}
@@ -357,6 +366,12 @@ function RobloxShim.new()
 		return self:GetChildren()
 	end
 	runService.Heartbeat = newSignal()
+	function runService:IsServer()
+		return true
+	end
+	function runService:IsClient()
+		return false
+	end
 
 	local services = {
 		ReplicatedStorage = replicatedStorage,

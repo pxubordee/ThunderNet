@@ -64,6 +64,8 @@ export type Event = EventState & {
 	FireServer: (self: Event, data: any, priority: PriorityName?) -> (),
 	FireClient: (self: Event, player: any, data: any, priority: PriorityName?) -> (),
 	FireAll: (self: Event, data: any, priority: PriorityName?) -> (),
+	FireExcept: (self: Event, excluded: any, data: any, priority: PriorityName?) -> (),
+	FireMany: (self: Event, players: { any }, data: any, priority: PriorityName?) -> (),
 	SetPriority: (self: Event, priority: PriorityName) -> (),
 	GetPriority: (self: Event) -> PriorityName,
 	IsUnreliable: (self: Event) -> boolean,
@@ -79,6 +81,8 @@ export type TypedEvent<T = any> = {
 	FireServer: (self: TypedEvent<T>, data: T, priority: PriorityName?) -> (),
 	FireClient: (self: TypedEvent<T>, player: any, data: T, priority: PriorityName?) -> (),
 	FireAll: (self: TypedEvent<T>, data: T, priority: PriorityName?) -> (),
+	FireExcept: (self: TypedEvent<T>, excluded: any, data: T, priority: PriorityName?) -> (),
+	FireMany: (self: TypedEvent<T>, players: { any }, data: T, priority: PriorityName?) -> (),
 	SetPriority: (self: TypedEvent<T>, priority: PriorityName) -> (),
 	GetPriority: (self: TypedEvent<T>) -> PriorityName,
 	IsUnreliable: (self: TypedEvent<T>) -> boolean,
@@ -141,6 +145,22 @@ local function fireAll(self: Event, data: any, priority: PriorityName?)
 	send(self, "All", data, priority)
 end
 EventClass.FireAll = fireAll
+
+local function fireExcept(self: Event, excluded: any, data: any, priority: PriorityName?)
+	if excluded == nil then
+		error("FireExcept requires an excluded player", 3)
+	end
+	send(self, { Kind = "Except", Player = excluded }, data, priority)
+end
+EventClass.FireExcept = fireExcept
+
+local function fireMany(self: Event, players: { any }, data: any, priority: PriorityName?)
+	if type(players) ~= "table" then
+		error("FireMany requires a list of players", 3)
+	end
+	send(self, { Kind = "Many", Players = players }, data, priority)
+end
+EventClass.FireMany = fireMany
 
 local function setPriority(self: Event, priority: PriorityName)
 	getLevel(priority)

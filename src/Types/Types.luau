@@ -23,6 +23,7 @@ export type PayloadLimits = {
 export type BatchingConfig = {
 	MaxBatchSize: number?,
 	MaxBatchBytes: number?,
+	MaxQueueDepth: number?,
 	FlushInterval: number?,
 	Adaptive: boolean?,
 	MaxLatency: number?,
@@ -49,6 +50,7 @@ export type RateLimitConfig = {
 
 export type SerializerConfig = {
 	Enabled: boolean?,
+	FallbackToNative: boolean?,
 	Limits: any?,
 }
 
@@ -62,6 +64,7 @@ export type CompressionConfig = {
 
 export type NetworkConfig = {
 	Name: string?,
+	Preset: "Minimal" | "Standard" | "Hardened"?,
 	Stats: boolean?,
 	Batch: BatchingConfig?,
 	Request: RequestConfig?,
@@ -79,6 +82,7 @@ export type NetworkStats = {
 	MessagesReceived: number,
 	BatchesSent: number,
 	AverageBatchSize: number,
+	QueueOverflow: number,
 	BytesSentEstimate: number,
 	CompressionSavingsBytes: number,
 	QueueDepth: number,

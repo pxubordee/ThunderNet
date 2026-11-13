@@ -32,6 +32,12 @@ export type Config = {
 
 export type Sender = (destination: any, envelope: Protocol.Envelope, priority: number) -> ()
 
+export type RequestOptions = {
+	Timeout: number?,
+	MaxAttempts: number?,
+	Idempotent: boolean?,
+}
+
 type ResolvedConfig = {
 	Timeout: number,
 	MaxAttempts: number,
@@ -51,6 +57,8 @@ type PendingRecord = {
 	Destination: any,
 	Promise: Promise.Promise,
 	Attempts: number,
+	MaxAttempts: number,
+	Timeout: number,
 	Waiting: Waiting,
 	NextAt: number,
 }
@@ -89,7 +97,14 @@ type State = {
 
 export type RequestManager = State & {
 	GetSide: (self: RequestManager) -> Side,
-	Request: (self: RequestManager, destination: any, channel: string, data: any, now: number) -> Promise.Promise,
+	Request: (
+		self: RequestManager,
+		destination: any,
+		channel: string,
+		data: any,
+		now: number,
+		options: RequestOptions?
+	) -> Promise.Promise,
 	HandleResponse: (self: RequestManager, envelope: Protocol.Envelope, senderPlayer: any) -> boolean,
 	Step: (self: RequestManager, now: number) -> (),
 	GetPendingCount: (self: RequestManager) -> number,
@@ -178,7 +193,14 @@ local function cancelRequest(self: RequestManager, id: string)
 	self._sender(record.Destination, Protocol.Cancel(id), REQUEST_PRIORITY)
 end
 
-local function request(self: RequestManager, destination: any, channel: string, data: any, now: number): Promise.Promise
+local function request(
+	self: RequestManager,
+	destination: any,
+	channel: string,
+	data: any,
+	now: number,
+	options: RequestOptions?
+): Promise.Promise
 	if self._destroyed then
 		error("RequestManager is destroyed", 3)
 	end
@@ -187,6 +209,26 @@ local function request(self: RequestManager, destination: any, channel: string, 
 	end
 	if type(channel) ~= "string" or #channel == 0 then
 		error("Request channel must be a non-empty string", 3)
+	end
+
+	local timeout = self._config.Timeout
+	local maxAttempts = self._config.MaxAttempts
+	if options ~= nil then
+		if options.Timeout ~= nil then
+			if type(options.Timeout) ~= "number" or options.Timeout <= 0 then
+				error("Request Timeout must be positive", 3)
+			end
+			timeout = options.Timeout
+		end
+		if options.MaxAttempts ~= nil then
+			if type(options.MaxAttempts) ~= "number" or options.MaxAttempts < 1 or options.MaxAttempts % 1 ~= 0 then
+				error("Request MaxAttempts must be a positive integer", 3)
+			end
+			maxAttempts = options.MaxAttempts
+		end
+		if options.Idempotent == false then
+			maxAttempts = 1
+		end
 	end
 
 	local id = nextId(self)
@@ -198,8 +240,10 @@ local function request(self: RequestManager, destination: any, channel: string, 
 		Destination = destination,
 		Promise = promise,
 		Attempts = 1,
+		MaxAttempts = maxAttempts,
+		Timeout = timeout,
 		Waiting = "response",
-		NextAt = now + self._config.Timeout,
+		NextAt = now + timeout,
 	}
 	self._pending[id] = record
 	self.counters.RequestsSent += 1
@@ -251,7 +295,7 @@ local function step(self: RequestManager, now: number)
 	for _, record in pairs(self._pending) do
 		if now >= record.NextAt then
 			if record.Waiting == "response" then
-				if self._retry:ShouldRetry(record.Attempts) then
+				if record.Attempts < record.MaxAttempts then
 					record.Waiting = "retry"
 					record.NextAt = now + self._retry:NextDelay(record.Attempts)
 				else
@@ -260,7 +304,7 @@ local function step(self: RequestManager, now: number)
 			else
 				record.Attempts += 1
 				record.Waiting = "response"
-				record.NextAt = now + self._config.Timeout
+				record.NextAt = now + record.Timeout
 				self.counters.Retries += 1
 				self._sender(record.Destination, record.Envelope, REQUEST_PRIORITY)
 			end
@@ -274,7 +318,7 @@ local function step(self: RequestManager, now: number)
 			self._sender(record.Destination, Protocol.Cancel(record.Id), REQUEST_PRIORITY)
 			record.Promise:Reject({
 				Code = "TIMEOUT",
-				Message = "Request timed out after " .. tostring(self._config.Timeout) .. "s per attempt",
+				Message = "Request timed out after " .. tostring(record.Timeout) .. "s per attempt",
 			})
 		end
 	end
