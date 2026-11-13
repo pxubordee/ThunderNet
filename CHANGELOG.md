@@ -30,6 +30,8 @@
 
 - 186 automated tests passing; strict analysis clean; dev place and `.rbxm`
   package builds verified.
+- Release `.rbxm` smoke-tested in Roblox Studio Play Solo (event delivery,
+  schema validation and RPC).
 
 ## 0.1.0 — 2026-11-12
 
