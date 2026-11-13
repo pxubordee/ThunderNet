@@ -424,7 +424,7 @@ too forgiving.
   (one message per call) alone unless you know exactly why you need otherwise.
 - **Security:** validation and rate limits are on the server; still write
   server-authoritative game logic.
-- **Confidence:** 182 automated tests pass, strict type checking is clean, and a
+- **Confidence:** 186 automated tests pass, strict type checking is clean, and a
   real Studio Play Solo run completed successfully after the unreliable fix.
 
 ---

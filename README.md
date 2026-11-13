@@ -15,7 +15,7 @@ without giving up native Roblox remotes.</p>
 
 <p>
 <img alt="Luau strict" src="https://img.shields.io/badge/Luau-strict-2F7DFF">
-<img alt="182 tests passing" src="https://img.shields.io/badge/tests-182%20passing-2ECC71">
+<img alt="186 tests passing" src="https://img.shields.io/badge/tests-186%20passing-2ECC71">
 <img alt="Rojo 7.7.1" src="https://img.shields.io/badge/Rojo-7.7.1-orange">
 <img alt="Roblox Studio Play Solo verified" src="https://img.shields.io/badge/Roblox%20Studio-Play%20Solo%20verified-6C5CE7">
 <img alt="Benchmarks simulated and engine" src="https://img.shields.io/badge/benchmarks-simulated%20%2B%20engine-4CC9FF">
@@ -55,7 +55,7 @@ remotes — with its costs measured and documented.
 
 | Check | Result |
 | --- | --- |
-| Automated tests | **182 passed / 0 failed** — Luau CLI with a simulated Roblox environment |
+| Automated tests | **186 passed / 0 failed** — Luau CLI with a simulated Roblox environment |
 | Strict type analysis | **Clean** — cross-module `luau-analyze --mode=strict` |
 | Rojo build | **Succeeds** — dev place + `build/ThunderNet-0.1.0.rbxm` package |
 | Distribution package | **Built successfully** — draggable `.rbxm` at `build/ThunderNet-0.1.0.rbxm` |
@@ -339,7 +339,38 @@ Net:Unuse(token)
 
 Rules: `next()` exactly once; return `false, reason` to reject; throwing an
 error drops the event (requests receive a rejection); not calling `next()` is
-`MIDDLEWARE_INCOMPLETE`. Middleware is inbound-only per session.
+`MIDDLEWARE_INCOMPLETE`. The global pipeline is inbound-only per session.
+
+Per-event inbound middleware:
+
+```lua
+local Combat = Net:CreateEvent("Combat", {
+    Middleware = {
+        function(context, next)
+            context.Data.checked = true
+            return next(context)
+        end,
+    },
+})
+
+local token = Combat:Use(function(context, next)
+    return next(context)
+end)
+Combat:Unuse(token)
+```
+
+Outbound event middleware runs once per event send, before encoding:
+
+```lua
+local outboundToken = Net:UseOutbound(function(context, next)
+    -- context: Data, Channel, Player, Destination, Priority, Unreliable
+    return next(context)
+end)
+Net:UnuseOutbound(outboundToken)
+```
+
+Outbound middleware currently covers event sends; request/response payload
+middleware is planned. Rejections are reported through `Net.OnDrop`.
 
 ### Batching and priority scheduling
 
@@ -395,6 +426,25 @@ timeouts, malformed/dropped/rate-limited/rejected counters, dispatch counts and
 time, and message counts per priority. Byte totals are estimates; real network
 usage, ping and bandwidth are not claimed. When `Stats = false`, cheap counters
 remain and per-packet dispatch timing is skipped.
+
+### Error and drop hooks
+
+```lua
+Net.OnError:Connect(function(info)
+    warn(info.Code, info.Message, info.Channel)
+end)
+Net.OnDrop:Connect(function(info)
+    -- info.Code: MALFORMED_PACKET, INVALID_PAYLOAD, INVALID_LANE,
+    -- UNKNOWN_EVENT, PERMISSION_DENIED, MIDDLEWARE_REJECTED,
+    -- OUTBOUND_REJECTED, QUEUE_OVERFLOW, UNKNOWN_RESPONSE, ...
+end)
+Net.OnRateLimited:Connect(function(info)
+    warn(info.Player, info.Channel, info.RetryAfter)
+end)
+```
+
+Hooks are informational and isolated: an error thrown by a hook is warned but
+does not break network dispatch.
 
 ### Lifecycle
 
@@ -491,18 +541,18 @@ simple guide: [BENCHMARKS-SIMPLE.md](BENCHMARKS-SIMPLE.md).
 
 ```bash
 ./scripts/check.sh   # tests + strict analysis + Rojo build
-./scripts/test.sh    # 182-test suite only
+./scripts/test.sh    # 186-test suite only
 node scripts/analyze.mjs
 ./scripts/package.sh # build the draggable .rbxm
 ./scripts/bench.sh   # CLI CPU benchmarks
 ```
 
 The automated suite covers initialization, event delivery, destination
-isolation, batching/priority fairness, unreliable enforcement, middleware, RPC
-timeouts/retries/dedupe/cancel/per-call options, rate limits, malformed packets,
-payload/schema validation, permissions, player cleanup, compression round-trips,
-statistics, queue overflow, presets, Promise.all, handshake validation,
-serializer fallback and lifecycle cleanup.
+isolation, batching/priority fairness, unreliable enforcement, global/per-event/
+outbound middleware, hooks, RPC timeouts/retries/dedupe/cancel/per-call options,
+rate limits, malformed packets, payload/schema validation, permissions, player
+cleanup, compression round-trips, statistics, queue overflow, presets,
+Promise.all, handshake validation, serializer fallback and lifecycle cleanup.
 
 The suite runs on a deterministic simulated Roblox environment. A separate
 Roblox Studio Play Solo benchmark session verified real remote delivery and

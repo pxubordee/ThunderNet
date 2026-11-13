@@ -22,6 +22,7 @@ local Compression = require(script.Parent.Parent.Features.Compression)
 local RateLimiter = require(script.Parent.Parent.Security.RateLimiter)
 local Validator = require(script.Parent.Parent.Security.Validator)
 local Promise = require(script.Parent.Parent.Utilities.Promise)
+local Signal = require(script.Parent.Parent.Utilities.Signal)
 local Janitor = require(script.Parent.Parent.Utilities.Janitor)
 
 local Network = {}
@@ -44,6 +45,7 @@ type StatsCounters = {
 	MessagesReceived: number,
 	BatchesSent: number,
 	QueueOverflow: number,
+	OutboundRejected: number,
 	BytesSentEstimate: number,
 	CompressionSavingsBytes: number,
 	MalformedPackets: number,
@@ -60,6 +62,16 @@ type StatsCounters = {
 
 local SERVER_DESTINATION = "Server"
 local PROTOCOL_VERSION = 1
+
+local function emit(signal: Signal.Signal, payload: any)
+	if signal:GetConnectionCount() == 0 then
+		return
+	end
+	local ok, err = pcall(signal.Fire, signal, payload)
+	if not ok then
+		warn("ThunderNet hook error: " .. tostring(err))
+	end
+end
 
 local PRESETS: { [string]: NetworkConfig } = {
 	Standard = {},
@@ -127,6 +139,7 @@ type State = {
 	_defaultBurst: number,
 	_scheduler: Scheduler.Scheduler,
 	_middleware: Middleware.Middleware,
+	_outboundMiddleware: Middleware.Middleware,
 	_registry: Registry.Registry,
 	_batcher: Batcher.Batcher,
 	_requestManager: RequestManager.RequestManager,
@@ -139,6 +152,9 @@ type State = {
 	_ownsRemotes: boolean,
 	_channels: { [string]: Channels.Channel },
 	_destroyed: boolean,
+	OnError: Signal.Signal,
+	OnDrop: Signal.Signal,
+	OnRateLimited: Signal.Signal,
 }
 
 export type Network = State & {
@@ -149,6 +165,8 @@ export type Network = State & {
 	GetEvent: <T>(self: Network, name: string, options: EventOptions?) -> TypedEvent<T>?,
 	Use: (self: Network, middlewareFunction: Middleware.MiddlewareFunction) -> number,
 	Unuse: (self: Network, token: number) -> boolean,
+	UseOutbound: (self: Network, middlewareFunction: Middleware.MiddlewareFunction) -> number,
+	UnuseOutbound: (self: Network, token: number) -> boolean,
 	OnRequest: <TRequest, TResult>(
 		self: Network,
 		name: string,
@@ -268,6 +286,7 @@ function Network.new(side: Side, config: NetworkConfig?): Network
 		MessagesReceived = 0,
 		BatchesSent = 0,
 		QueueOverflow = 0,
+		OutboundRejected = 0,
 		BytesSentEstimate = 0,
 		CompressionSavingsBytes = 0,
 		MalformedPackets = 0,
@@ -307,6 +326,7 @@ function Network.new(side: Side, config: NetworkConfig?): Network
 		_defaultBurst = resolved.DefaultBurst,
 		_scheduler = Scheduler.new(os.clock()),
 		_middleware = Middleware.new(),
+		_outboundMiddleware = Middleware.new(),
 		_janitor = Janitor.new(),
 		_reliable = nil,
 		_unreliable = nil,
@@ -314,6 +334,9 @@ function Network.new(side: Side, config: NetworkConfig?): Network
 		_ownsRemotes = false,
 		_channels = {} :: { [string]: Channels.Channel },
 		_destroyed = false,
+		OnError = Signal.new(),
+		OnDrop = Signal.new(),
+		OnRateLimited = Signal.new(),
 	}, Network) :: any
 
 	self._batcher = Batcher.new(fullConfig.Batch, function(destination, reliable, messages)
@@ -350,6 +373,17 @@ function Network.new(side: Side, config: NetworkConfig?): Network
 		SendEnvelope = function(destination, envelope, priority, reliable)
 			self:_sendEnvelope(destination, envelope, priority, reliable)
 		end,
+		Hooks = {
+			OnDrop = function(payload)
+				emit(self.OnDrop, payload)
+			end,
+			OnRateLimited = function(payload)
+				emit(self.OnRateLimited, payload)
+			end,
+			OnError = function(payload)
+				emit(self.OnError, payload)
+			end,
+		},
 	})
 
 	if side == "Server" then
@@ -558,15 +592,66 @@ function Network._enqueue(self: Network, destination: any, envelope: Protocol.En
 	end
 	if not self._batcher:Push(destination, envelope, priority, reliable, bytes, os.clock()) then
 		self._stats.QueueOverflow += 1
+		emit(self.OnDrop, {
+			Code = "QUEUE_OVERFLOW",
+			Message = "Message dropped because the queue is full",
+			Channel = if type(envelope[2]) == "string" then envelope[2] else nil,
+			Destination = destination,
+		})
 		return
 	end
 	self._stats.MessagesByPriority[priority] += 1
 	self._stats.BytesSentEstimate += bytes
 end
 
+local function rejectionMessage(rejection: any): string
+	if type(rejection) == "table" then
+		if type(rejection.Message) == "string" then
+			return rejection.Message
+		end
+		if type(rejection.Code) == "string" then
+			return rejection.Code
+		end
+	end
+	if rejection ~= nil then
+		return tostring(rejection)
+	end
+	return "Rejected by outbound middleware"
+end
+
 function Network._sendEvent(self: Network, destination: any, channel: string, data: any, priority: number, reliable: boolean)
 	if self._destroyed then
 		error("Network is destroyed", 2)
+	end
+	if self._outboundMiddleware:GetCount() > 0 then
+		local player = destination
+		if destination == "All" or destination == "Server" then
+			player = nil
+		elseif type(destination) == "table" and destination.Kind ~= nil then
+			player = nil
+		end
+		local context: Middleware.Context = {
+			Data = data,
+			Channel = channel,
+			Kind = "Event",
+			Side = self._side,
+			Player = player,
+			Destination = destination,
+			Priority = priority,
+			Unreliable = not reliable,
+		}
+		local pipelineOk, finalContext, rejection = self._outboundMiddleware:Run(context)
+		if not pipelineOk then
+			self._stats.OutboundRejected += 1
+			emit(self.OnDrop, {
+				Code = "OUTBOUND_REJECTED",
+				Message = rejectionMessage(rejection),
+				Channel = channel,
+				Player = player,
+			})
+			return
+		end
+		data = (finalContext :: Middleware.Context).Data
 	end
 	local value, flags, bytes = self:_encodePayload(data)
 	local envelope = if flags ~= 0 then Protocol.Event(channel, value, flags) else Protocol.Event(channel, data)
@@ -656,6 +741,7 @@ function Network._handlePacket(self: Network, reliableLane: boolean, player: any
 		local ok, err = pcall(self._dispatcher.HandlePacket, self._dispatcher, packet, reliableLane, player, started)
 		if not ok then
 			self._stats.Errors += 1
+			emit(self.OnError, { Code = "INBOUND_ERROR", Message = tostring(err) })
 			warn("ThunderNet inbound error: " .. tostring(err))
 		end
 		self._stats.Dispatches += 1
@@ -711,6 +797,20 @@ function Network.Unuse(self: Network, token: number): boolean
 		return false
 	end
 	return self._middleware:Remove(token)
+end
+
+function Network.UseOutbound(self: Network, middlewareFunction: Middleware.MiddlewareFunction): number
+	if self._destroyed then
+		error("Network is destroyed", 2)
+	end
+	return self._outboundMiddleware:Use(middlewareFunction)
+end
+
+function Network.UnuseOutbound(self: Network, token: number): boolean
+	if self._destroyed then
+		return false
+	end
+	return self._outboundMiddleware:Remove(token)
 end
 
 function Network.OnRequest<TRequest, TResult>(self: Network, 
@@ -788,6 +888,7 @@ function Network.GetStats(self: Network): NetworkStats
 		MessagesReceived = counters.MessagesReceived,
 		BatchesSent = batches,
 		QueueOverflow = counters.QueueOverflow,
+		OutboundRejected = counters.OutboundRejected,
 		AverageBatchSize = if batches > 0 then counters.MessagesSent / batches else 0,
 		BytesSentEstimate = counters.BytesSentEstimate,
 		CompressionSavingsBytes = counters.CompressionSavingsBytes,
@@ -818,10 +919,14 @@ function Network.Destroy(self: Network)
 	self._janitor:Destroy()
 	self._scheduler:Destroy()
 	self._middleware:Destroy()
+	self._outboundMiddleware:Destroy()
 	self._registry:Destroy()
 	self._batcher:Destroy()
 	self._requestManager:Destroy()
 	self._rateLimiter:Destroy()
+	self.OnError:Destroy()
+	self.OnDrop:Destroy()
+	self.OnRateLimited:Destroy()
 	self._channels = {}
 
 	if self._ownsRemotes and self._folder ~= nil then

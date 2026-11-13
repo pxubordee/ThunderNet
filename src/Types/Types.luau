@@ -82,6 +82,7 @@ export type NetworkStats = {
 	MessagesReceived: number,
 	BatchesSent: number,
 	AverageBatchSize: number,
+	OutboundRejected: number,
 	QueueOverflow: number,
 	BytesSentEstimate: number,
 	CompressionSavingsBytes: number,
