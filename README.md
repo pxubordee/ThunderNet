@@ -7,10 +7,11 @@ Events, RPC, batching, middleware, validation, rate limits and statistics —
 without giving up native Roblox remotes.</p>
 
 <p>
+<a href="docs/TUTORIAL.md"><strong>Tutorial</strong></a> &nbsp;·&nbsp;
 <a href="#quick-start"><strong>Quick start</strong></a> &nbsp;·&nbsp;
+<a href="docs/API.md"><strong>API reference</strong></a> &nbsp;·&nbsp;
 <a href="BENCHMARKS-SIMPLE.md"><strong>Benchmarks in plain English</strong></a> &nbsp;·&nbsp;
-<a href="docs/ARCHITECTURE.md"><strong>Architecture</strong></a> &nbsp;·&nbsp;
-<a href="docs/SECURITY.md"><strong>Security</strong></a>
+<a href="docs/ARCHITECTURE.md"><strong>Architecture</strong></a>
 </p>
 
 <p>
@@ -19,7 +20,7 @@ without giving up native Roblox remotes.</p>
 <img alt="Rojo 7.7.1" src="https://img.shields.io/badge/Rojo-7.7.1-orange">
 <img alt="Roblox Studio Play Solo verified" src="https://img.shields.io/badge/Roblox%20Studio-Play%20Solo%20verified-6C5CE7">
 <img alt="Benchmarks simulated and engine" src="https://img.shields.io/badge/benchmarks-simulated%20%2B%20engine-4CC9FF">
-<img alt="Version 0.1.0" src="https://img.shields.io/badge/version-0.1.0-blue">
+<img alt="Version 0.2.0" src="https://img.shields.io/badge/version-0.2.0-blue">
 <img alt="License MIT" src="https://img.shields.io/badge/license-MIT-green">
 </p>
 
@@ -38,6 +39,10 @@ It is **not** an anti-cheat system and it does **not** make the internet faster.
 It is the safety and organization layer between your game code and Roblox
 remotes — with its costs measured and documented.
 
+**New to ThunderNet?** Follow [Build your first feature](docs/TUTORIAL.md) for a
+step-by-step walkthrough, or jump to the [API reference](docs/API.md) for every
+signature.
+
 ## Why ThunderNet
 
 | | What you get |
@@ -51,15 +56,33 @@ remotes — with its costs measured and documented.
 | **Lifecycle discipline** | Every listener, queue, cache, player bucket and pending request has an owner and a cleanup path. |
 | **Typed interface** | Strict Luau modules with typed events (`TypedEvent<T>`) and RPC results (`PromiseOf<T>`). |
 
+## Public API at a glance
+
+Every call is explained in the [API reference](docs/API.md).
+
+| Area | Calls | What it does |
+| --- | --- | --- |
+| Setup | `ThunderNet.Server`, `Client`, `Init`, `Event<T>` | Create a server/client session and typed event handles. |
+| Define events | `Net:CreateEvent`, `GetEvent`, `CreateChannel` | Register an event or fetch its client handle; channels share defaults. |
+| Send events | `FireServer`, `FireClient`, `FireAll`, `FireExcept`, `FireMany` | Send one event to the server, a player, everyone, everyone except one, or a list. |
+| Receive events | `OnServerEvent`, `OnClientEvent` | Connect your gameplay handlers. |
+| Requests | `OnRequest`, `InvokeServer`, `InvokeClient`, `Promise.all` | Ask a question and receive an answer, with timeouts, retries and dedupe. |
+| Middleware | `Net:Use/Unuse`, `UseOutbound/UnuseOutbound`, `event:Use/Unuse` | Inspect, mutate or reject messages globally, per event, or before sending. |
+| Security | `Validator.*`, `Permission`, `RateLimit`, `Permissions.*` | Runtime payload checks and server-side authorization. |
+| Lifecycle & debug | `After`, `GetStats`, `OnError`, `OnDrop`, `OnRateLimited`, `Destroy` | Timers, statistics, failure hooks and cleanup. |
+| Utilities | `Signal`, `Promise`, `Janitor` | Small primitives used by the framework and available to your game. |
+
+Priorities: `Critical`, `High`, `Normal`, `Low`, `Background`.
+
 ## Verified status
 
 | Check | Result |
 | --- | --- |
 | Automated tests | **186 passed / 0 failed** — Luau CLI with a simulated Roblox environment |
 | Strict type analysis | **Clean** — cross-module `luau-analyze --mode=strict` |
-| Rojo build | **Succeeds** — dev place + `build/ThunderNet-0.1.0.rbxm` package |
-| Distribution package | **Built successfully** — draggable `.rbxm` at `build/ThunderNet-0.1.0.rbxm` |
-| GitHub release / Wally | Workflow and manifest included; **not published yet** (no remote/Wally token) |
+| Rojo build | **Succeeds** — dev place + `build/ThunderNet-0.2.0.rbxm` package |
+| Distribution package | **Built successfully** — draggable `.rbxm` at `build/ThunderNet-0.2.0.rbxm` |
+| GitHub release / Wally | `v0.2.0` tag drives the bundled `.rbxm` release; Wally manifest is ready but publication is manual |
 | Roblox Studio | **Play Solo run completed** — real local server and real remotes, one sample |
 | Real internet latency/bandwidth | **Not measured** — no live-player telemetry claimed |
 
@@ -76,6 +99,8 @@ event sync is planned.
 
 ## Contents
 
+- [Tutorial](docs/TUTORIAL.md)
+- [Public API at a glance](#public-api-at-a-glance)
 - [Installation](#installation)
 - [Quick start](#quick-start)
 - [Core API](#core-api)
@@ -95,8 +120,9 @@ event sync is planned.
 
 ### Option 1 — drag and drop (easiest)
 
-Download the latest `ThunderNet-<version>.rbxm` from **GitHub Releases** and drag
-it into Roblox Studio's Explorer under `ReplicatedStorage`. You get a
+Download the latest `ThunderNet-<version>.rbxm` from
+[GitHub Releases](https://github.com/pxubordee/ThunderNet/releases/latest) and
+drag it into Roblox Studio's Explorer under `ReplicatedStorage`. You get a
 `ModuleScript` named `ThunderNet`:
 
 ```lua
@@ -114,7 +140,7 @@ published, add it to your `wally.toml` and install:
 
 ```toml
 [dependencies]
-ThunderNet = "pxubordee/thundernet@0.1.0"
+ThunderNet = "pxubordee/thundernet@0.2.0"
 ```
 
 ```bash
@@ -155,6 +181,9 @@ distribution. This is not automated and nothing is published there yet.
 ---
 
 ## Quick start
+
+Prefer a guided walkthrough with explanations? Use the
+[tutorial](docs/TUTORIAL.md). This section is the condensed version.
 
 ### Server
 
@@ -627,6 +656,9 @@ ThunderNet/
 
 | Resource | What it covers |
 | --- | --- |
+| [docs/TUTORIAL.md](docs/TUTORIAL.md) | Beginner walkthrough from install to validation, RPC, middleware and debugging |
+| [docs/API.md](docs/API.md) | Complete public function and signal reference |
+| [CHANGELOG.md](CHANGELOG.md) | Version history and release notes |
 | [examples/Server.server.luau](examples/Server.server.luau) | Channels, schema validation, middleware, authoritative handlers, RPC, unreliable snapshots |
 | [examples/Client.client.luau](examples/Client.client.luau) | Typed events, unreliable events, calls, RPC promise handling |
 | [BENCHMARKS-SIMPLE.md](BENCHMARKS-SIMPLE.md) | Plain-language benchmarks, win/loss table and a native-vs-ThunderNet checklist |
