@@ -1,10 +1,12 @@
-# ThunderNet Benchmarks, Explained Simply
+# ThunderNet For Roblox Benchmarks, Explained Simply
+
+Full name: **ThunderNetworking.**
 
 *For designers, producers, and anyone who doesn't want to read raw performance tables.*
 
 ## If you only read one paragraph
 
-ThunderNet is a messaging system for Roblox games. We tested how many messages
+ThunderNet For Roblox is a messaging system for Roblox games. We tested how many messages
 it can process on a test machine, both in a simulation and inside Roblox Studio.
 The short version: **it comfortably handles far more messages per second than a
 normal game sends**, and the extra safety/organizing work costs a little CPU per
@@ -424,7 +426,7 @@ too forgiving.
   (one message per call) alone unless you know exactly why you need otherwise.
 - **Security:** validation and rate limits are on the server; still write
   server-authoritative game logic.
-- **Confidence:** 186 automated tests pass, strict type checking is clean, and a
+- **Confidence:** 190 automated tests pass, strict type checking is clean, and a
   real Studio Play Solo run completed successfully after the unreliable fix.
 
 ---

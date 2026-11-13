@@ -1,8 +1,10 @@
 <div align="center">
 
-<img src="assets/thundernetlogo.png" alt="ThunderNet" width="600">
+<img src="assets/thundernetlogo.png" alt="ThunderNet For Roblox — ThunderNetworking" width="600">
 
-<p><strong>Typed, server-authoritative networking for Roblox.</strong><br>
+<p><strong>ThunderNet For Roblox</strong><br>
+Full name: <strong>ThunderNetworking.</strong><br>
+Typed, server-authoritative networking for Roblox.<br>
 Events, RPC, batching, middleware, validation, rate limits and statistics —
 without giving up native Roblox remotes.</p>
 
@@ -17,11 +19,11 @@ without giving up native Roblox remotes.</p>
 <p>
 <a href="https://github.com/pxubordee/ThunderNet/actions/workflows/ci.yml"><img alt="CI" src="https://github.com/pxubordee/ThunderNet/actions/workflows/ci.yml/badge.svg"></a>
 <img alt="Luau strict" src="https://img.shields.io/badge/Luau-strict-2F7DFF">
-<img alt="186 tests passing" src="https://img.shields.io/badge/tests-186%20passing-2ECC71">
+<img alt="190 tests passing" src="https://img.shields.io/badge/tests-190%20passing-2ECC71">
 <img alt="Rojo 7.7.1" src="https://img.shields.io/badge/Rojo-7.7.1-orange">
 <img alt="Roblox Studio Play Solo verified" src="https://img.shields.io/badge/Roblox%20Studio-Play%20Solo%20verified-6C5CE7">
 <img alt="Benchmarks simulated and engine" src="https://img.shields.io/badge/benchmarks-simulated%20%2B%20engine-4CC9FF">
-<img alt="Version 0.2.0" src="https://img.shields.io/badge/version-0.2.0-blue">
+<img alt="Version 0.3.0" src="https://img.shields.io/badge/version-0.3.0-blue">
 <img alt="License MIT" src="https://img.shields.io/badge/license-MIT-green">
 </p>
 
@@ -29,12 +31,12 @@ without giving up native Roblox remotes.</p>
 
 ---
 
-ThunderNet is a networking framework for Roblox experiences that need more than
-a `RemoteEvent` wrapper but less than a home-grown protocol. It keeps Roblox's
-transport, then adds the layers serious games keep rebuilding: a validated wire
-format, per-destination batching with priorities, request/response with safe
-retries, middleware, rate limits, optional serialization and compression, and
-production-facing statistics.
+ThunderNet For Roblox (full name: ThunderNetworking) is a networking framework
+for Roblox experiences that need more than a `RemoteEvent` wrapper but less than
+a home-grown protocol. It keeps Roblox's transport, then adds the layers serious
+games keep rebuilding: a validated wire format, per-destination batching with
+priorities, request/response with safe retries, middleware, rate limits, optional
+serialization and compression, and production-facing statistics.
 
 It is **not** an anti-cheat system and it does **not** make the internet faster.
 It is the safety and organization layer between your game code and Roblox
@@ -79,13 +81,13 @@ Priorities: `Critical`, `High`, `Normal`, `Low`, `Background`.
 
 | Check | Result |
 | --- | --- |
-| Automated tests | **186 passed / 0 failed** — Luau CLI with a simulated Roblox environment |
+| Automated tests | **190 passed / 0 failed** — Luau CLI with a simulated Roblox environment |
 | Strict type analysis | **Clean** — cross-module `luau-analyze --mode=strict` |
-| Rojo build | **Succeeds** — dev place + `build/ThunderNet-0.2.0.rbxm` package |
-| Distribution package | **Built successfully** — draggable `.rbxm` at `build/ThunderNet-0.2.0.rbxm` |
-| GitHub release | `v0.2.0` tag drives the bundled `.rbxm`; this is the only supported distribution |
+| Rojo build | **Succeeds** — dev place + `build/ThunderNet-0.3.0.rbxm` package |
+| Distribution package | **Built successfully** — draggable `.rbxm` at `build/ThunderNet-0.3.0.rbxm` |
+| GitHub release | `v0.3.0` tag drives the bundled `.rbxm`; this is the only supported distribution |
 | Roblox Studio | **Play Solo run completed** — real local server and real remotes, one sample |
-| Release artifact smoke test | **Passed** — `.rbxm` loaded in Studio; server/client events, schema validation and RPC exercised in Play Solo |
+| Release artifact smoke test | **Passed for v0.2.0** — `.rbxm` loaded in Studio; server/client events, schema validation and RPC exercised in Play Solo. Re-run for each release. |
 | Real internet latency/bandwidth | **Not measured** — no live-player telemetry claimed |
 
 Engine testing also found and fixed a real bug: oversized batches on
@@ -120,23 +122,27 @@ event sync is planned.
 
 ## Installation
 
-ThunderNet is distributed as a single compiled `.rbxm` model from GitHub
+ThunderNet For Roblox is distributed as a single compiled `.rbxm` model from GitHub
 Releases. This is currently the **only supported way to get ThunderNet**.
 
 1. Open the [latest GitHub Release](https://github.com/pxubordee/ThunderNet/releases/latest).
-2. Download `ThunderNet-<version>.rbxm`.
-3. In Roblox Studio, open **Explorer**, select **ReplicatedStorage**, and drag
+2. Download `ThunderNet-<version>.rbxm` and its `.sha256` checksum.
+3. Verify the download (Linux: `sha256sum -c ThunderNet-<version>.rbxm.sha256`;
+   macOS: `shasum -a 256 -c ThunderNet-<version>.rbxm.sha256`).
+4. In Roblox Studio, open **Explorer**, select **ReplicatedStorage**, and drag
    the file in.
-4. Confirm there is a `ModuleScript` named `ThunderNet` with `Core`,
-   `Features`, `Security`, `Transport`, `Utilities`, and `Types` folders inside.
-5. Require it:
+5. Confirm there is a `ModuleScript` named `ThunderNet` with `Core`,
+   `Features`, `Security`, `Transport`, `Utilities`, and `Types` folders inside,
+   plus a `LICENSE` StringValue containing the MIT notice.
+6. Require it:
 
 ```lua
 local ThunderNet = require(game:GetService("ReplicatedStorage"):WaitForChild("ThunderNet"))
 ```
 
-No Rojo, package-manager, or Creator Store install is offered at this time. The source repository is for development and testing of the framework
-itself, not a consumer installation path.
+No Rojo, package-manager, or Creator Store install is offered at this time. The
+source repository is for development and testing of the framework itself, not a
+consumer installation path.
 
 ---
 
@@ -304,7 +310,10 @@ local results = ThunderNet.Promise.all({
 - Per-call `RequestOptions`: `Timeout`, `MaxAttempts`, and `Idempotent = false`
   (forces a single attempt). Backoff stays session-configured.
 - The receiver caches responses for `DedupeTtl`, so retries never re-execute a
-  non-idempotent handler.
+  non-idempotent handler. Cached entries are bound to the request channel; an id
+  replayed on another channel is dropped as `REQUEST_ID_CONFLICT`, and a
+  duplicate that arrives while the original is still running is dropped as
+  `REQUEST_IN_FLIGHT`.
 - `promise:Cancel()` sends a cancel envelope; late requests are not executed.
 - Errors use codes: `TIMEOUT`, `CANCELLED`, `RATE_LIMITED`, `INVALID_PAYLOAD`,
   `NO_HANDLER`, `HANDLER_ERROR`, `PLAYER_LEFT`, `DESTROYED`.
@@ -390,15 +399,16 @@ Both are **off by default**; native Roblox values are used otherwise.
 
 Server-authoritative checks run before expensive work:
 
-1. Structural packet validation (opcodes, lengths, names, ids, flags, batches).
-2. Per-envelope token-bucket rate limits.
-3. Lane rules (RPC reliable-only; unreliable events must be declared).
-4. Bounded payload decode.
-5. Payload walk (types, finite numbers, key types, byte/depth limits, cycles).
-6. Per-event rate limits and permissions.
-7. Schema/custom validation.
-8. Middleware.
-9. Handler, under `pcall`.
+1. Packet-level token-bucket rate limit, applied before unpacking.
+2. Structural packet validation (opcodes, lengths, names, ids, flags, batches).
+3. Per-envelope token-bucket rate limits.
+4. Lane rules (RPC reliable-only; unreliable events must be declared).
+5. Bounded payload decode.
+6. Payload walk (types, finite numbers, key types, byte/depth limits, cycles).
+7. Per-event rate limits and permissions.
+8. Schema/custom validation.
+9. Middleware.
+10. Handler, under `pcall`.
 
 The framework cannot validate game meaning. Your server must still verify
 damage, currency, inventory, prices, ownership and cooldowns independently.
@@ -425,7 +435,8 @@ end)
 Net.OnDrop:Connect(function(info)
     -- info.Code: MALFORMED_PACKET, INVALID_PAYLOAD, INVALID_LANE,
     -- UNKNOWN_EVENT, PERMISSION_DENIED, MIDDLEWARE_REJECTED,
-    -- OUTBOUND_REJECTED, QUEUE_OVERFLOW, UNKNOWN_RESPONSE, ...
+    -- OUTBOUND_REJECTED, QUEUE_OVERFLOW, UNKNOWN_RESPONSE,
+    -- REQUEST_IN_FLIGHT, REQUEST_ID_CONFLICT, ...
 end)
 Net.OnRateLimited:Connect(function(info)
     warn(info.Player, info.Channel, info.RetryAfter)
@@ -476,7 +487,7 @@ local Net = ThunderNet.Server({
         DedupeTtl = 30,
         DedupeMaxEntries = 256,
     },
-    RateLimit = { Rate = 120, Burst = 240 },
+    RateLimit = { Rate = 120, Burst = 240, PacketRate = 300, PacketBurst = 600 },
     Payload = { MaxBytes = 65536, MaxDepth = 8 },
     Limits = {
         MaxBatchMessages = 128,
@@ -489,7 +500,9 @@ local Net = ThunderNet.Server({
 ```
 
 Invalid configuration throws before remotes are created. All defaults are
-validated on construction.
+validated on construction. `PacketRate`/`PacketBurst` bound pre-unpack packet
+floods and default to `max(Rate, 300)` / `max(Burst, 600)` so batching at high
+frame rates is not throttled.
 
 ---
 
@@ -530,7 +543,7 @@ simple guide: [BENCHMARKS-SIMPLE.md](BENCHMARKS-SIMPLE.md).
 
 ```bash
 ./scripts/check.sh   # tests + strict analysis + Rojo build
-./scripts/test.sh    # 186-test suite only
+./scripts/test.sh    # 190-test suite only
 node scripts/analyze.mjs
 ./scripts/package.sh # build the draggable .rbxm
 ./scripts/bench.sh   # CLI CPU benchmarks
@@ -553,15 +566,18 @@ caught the unreliable batching bug; engine runs are not part of `check.sh`.
 
 ThunderNet is published through a GitHub Release only.
 
-1. Update `VERSION`.
+1. Update `VERSION` and `CHANGELOG.md`.
 2. Run `./scripts/check.sh` (tests, analysis, dev place and `.rbxm` build).
 3. Commit, tag `vX.Y.Z`, and push the commit and tag.
-4. The tag workflow builds and attaches `ThunderNet-X.Y.Z.rbxm` to the GitHub
-   Release.
+4. The tag workflow re-runs the full check, builds `ThunderNet-X.Y.Z.rbxm`,
+   writes a `.sha256` checksum, attests build provenance, and creates the GitHub
+   Release with install, verification and license notes.
 5. Smoke-test the downloaded `.rbxm` in a Play Solo place (event delivery +
-   RPC), then verify the release asset is present before announcing it.
+   RPC), verify the checksum and provenance, then announce it.
 
 The release workflow only runs on pushed `v*` tags and needs a GitHub remote.
+Do not upload builds from other sources; the release artifact is the supported
+distribution.
 
 ---
 
@@ -604,11 +620,15 @@ ThunderNet/
 ├── benchmarks/                 CLI CPU benchmark, Studio benchmark script
 ├── scripts/                    embed / test / analyze / bench / check / build / package
 ├── docs/                       Architecture, protocol, security, benchmarks
-├── .github/workflows/          Tag-driven release workflow
+├── .github/workflows/          CI and tag-driven release workflows
+├── .github/ISSUE_TEMPLATE/     Bug report and feature request forms
 ├── default.project.json        Package project (builds the .rbxm)
 ├── dev.project.json            Development place project (src + examples + tests)
 ├── VERSION                     Release version
 ├── LICENSE                     MIT
+├── SECURITY.md                 Vulnerability reporting and audit disclaimer
+├── CONTRIBUTING.md             Development setup and contribution rules
+├── CODE_OF_CONDUCT.md          Community standards
 ├── BENCHMARKS-SIMPLE.md        Beginner-friendly benchmark guide
 └── README.md
 ```
@@ -627,6 +647,8 @@ ThunderNet/
 | [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | Module responsibilities, data flow, lifecycle, trade-offs |
 | [docs/PROTOCOL.md](docs/PROTOCOL.md) | Envelope layouts, opcodes, flags, validation, request lifecycle |
 | [docs/SECURITY.md](docs/SECURITY.md) | Threat model, check ordering, limits, dedupe trade-offs |
+| [SECURITY.md](SECURITY.md) | Private vulnerability reporting, supported versions, audit disclaimer |
+| [CONTRIBUTING.md](CONTRIBUTING.md) | Development setup, test-first rules and PR checklist |
 | [docs/ROADMAP.md](docs/ROADMAP.md) | Shipped capabilities and the planned performance/simplicity/feature milestones |
 
 ---
@@ -636,8 +658,8 @@ ThunderNet/
 | Limitation | What it means |
 | --- | --- |
 | `FireAll` sends per-player batches | Correct isolation, but not a single native broadcast call. |
-| Dedupe is time- and size-bounded | A retry after `DedupeTtl`/eviction can re-execute; keep the window above your retry horizon. |
-| Middleware is inbound-only | No outbound middleware pipeline in this version. |
+| Dedupe is time- and size-bounded | A retry after `DedupeTtl`/eviction can re-execute; keep the window above your retry horizon. Dedupe entries are channel-bound, and replayed ids on another channel are dropped. |
+| Middleware is inbound-only by default | Global and per-event middleware run on receive; `UseOutbound` exists for outbound event filtering, but requests bypass it. |
 | Binary serializer excludes Instances/EnumItems | Use native mode when payloads contain Roblox references. |
 | Unreliable messages default to one per call | Prevents engine drops from the ~900-byte cap; opt-in batching is at your own risk. |
 | RLE is simple | Opt-in and gated on measured savings; not a modern compressor. |
@@ -670,11 +692,14 @@ ThunderNet/
 ---
 
 <div align="center">
-<p><strong>ThunderNet</strong> · built for serious Roblox experiences.</p>
+<p><strong>ThunderNet For Roblox</strong> · full name <strong>ThunderNetworking.</strong><br>
+Built for serious Roblox experiences.</p>
 <p>
 <a href="#quick-start">Quick start</a> ·
 <a href="BENCHMARKS-SIMPLE.md">Plain-English benchmarks</a> ·
 <a href="docs/SECURITY.md">Security model</a> ·
 <a href="docs/ARCHITECTURE.md">Architecture</a>
 </p>
+<p><sub>ThunderNet For Roblox is an independent project and is not affiliated with
+any other product, project or company using the ThunderNet name. MIT licensed.</sub></p>
 </div>

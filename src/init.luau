@@ -25,6 +25,8 @@ export type RequestOptions = Network.RequestOptions
 export type Timer = Network.Timer
 
 local ThunderNet = {
+	DisplayName = "ThunderNet For Roblox",
+	FullName = "ThunderNetworking",
 	Priority = table.freeze({
 		Critical = "Critical",
 		High = "High",

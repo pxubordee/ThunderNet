@@ -1,5 +1,8 @@
 # Security model
 
+ThunderNet For Roblox (full name: ThunderNetworking). Report vulnerabilities
+privately using the process in the root [SECURITY.md](../SECURITY.md).
+
 ## Trust boundary
 
 - The server is trusted.
@@ -13,25 +16,28 @@
 
 ## Inbound checks (server), cheapest first
 
-1. **Rate limit** — per-envelope token bucket, default 120/s burst 240 per
-   player. Requests that are limited receive a `RATE_LIMITED` response.
+1. **Packet rate limit** — a per-player token bucket runs *before* the packet is
+   unpacked, so malformed-packet floods consume the same flood budget as valid
+   traffic.
 2. **Structural validation** — opcode, exact array lengths, printable ASCII
    names, request-id charset/length, flags, batch size, no nested batches.
-3. **Lane enforcement** — RPC traffic must be reliable; unreliable events must
+3. **Per-envelope rate limit** — token bucket, default 120/s burst 240 per
+   player. Requests that are limited receive a `RATE_LIMITED` response.
+4. **Lane enforcement** — RPC traffic must be reliable; unreliable events must
    be declared unreliable by the server.
-4. **Payload decode bounds** — decompression output capped by
+5. **Payload decode bounds** — decompression output capped by
    `MaxDecompressedBytes`; serializer decode is bounds-checked and rejects
    trailing/truncated data.
-5. **Payload structural walk** — supported types only, finite numbers,
+6. **Payload structural walk** — supported types only, finite numbers,
    string/number keys, byte limit (`MaxBytes`), depth limit (`MaxDepth`),
    cyclic/shared references rejected. Iterative, so hostile nesting cannot
    overflow the stack.
-6. **Per-event rate limit** (optional) — a second token bucket keyed by event
+7. **Per-event rate limit** (optional) — a second token bucket keyed by event
    name.
-7. **Permission** (optional) — server-side function receives `(player, data)`.
-8. **Schema / custom Validate** — runtime checks for the payload shape.
-9. **Middleware** — authentication/authorization hooks, payload rejection.
-10. **Handler** — executed under `pcall`; throws become `HANDLER_ERROR` without
+8. **Permission** (optional) — server-side function receives `(player, data)`.
+9. **Schema / custom Validate** — runtime checks for the payload shape.
+10. **Middleware** — authentication/authorization hooks, payload rejection.
+11. **Handler** — executed under `pcall`; throws become `HANDLER_ERROR` without
     leaking internal error text to the client.
 
 Malformed packets are dropped and counted; they do not raise errors to the
@@ -43,6 +49,9 @@ transport or stop later traffic.
 - Duplicate requests replay a cached response for `DedupeTtl` seconds instead of
   re-executing the handler. **This is the primary protection for non-idempotent
   operations under automatic retries.**
+- Dedupe entries are bound to the request channel. Reusing an id on a different
+  channel is dropped as `REQUEST_ID_CONFLICT`; a duplicate arriving while the
+  original is still executing is dropped as `REQUEST_IN_FLIGHT`.
 - Retry count is bounded (`MaxAttempts`); delays grow exponentially with jitter.
 - Responses to server-originated requests are only accepted from the destination
   player.
@@ -60,7 +69,8 @@ operations where a late duplicate would be harmful.
 
 | Limit | Default | Purpose |
 | --- | ---: | --- |
-| `RateLimit.Rate` / `Burst` | 120 / 240 | flood protection |
+| `RateLimit.Rate` / `Burst` | 120 / 240 | per-envelope flood protection |
+| `RateLimit.PacketRate` / `PacketBurst` | max(Rate, 300) / max(Burst, 600) | pre-unpack packet flood protection |
 | `Payload.MaxBytes` | 65,536 | payload size |
 | `Payload.MaxDepth` | 8 | nesting depth |
 | `Limits.MaxBatchMessages` | 128 | batch amplification |

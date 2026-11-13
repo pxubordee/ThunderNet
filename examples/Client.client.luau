@@ -1,5 +1,5 @@
 --!strict
--- ThunderNet client example. Place under StarterPlayerScripts with
+-- ThunderNet For Roblox (ThunderNetworking) client example. Place under StarterPlayerScripts with
 -- ReplicatedStorage.ThunderNet synced by Rojo.
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")

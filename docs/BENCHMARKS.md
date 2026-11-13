@@ -1,5 +1,7 @@
 # Benchmarks
 
+ThunderNet For Roblox — full name **ThunderNetworking.**
+
 > **Looking for a plain-language version?** See
 > [Benchmarks, Explained Simply](../BENCHMARKS-SIMPLE.md) for a beginner-friendly
 > explanation of these results.
@@ -23,6 +25,12 @@ Command:
 ```
 
 ## Current results
+
+Recorded on the v0.2.0 sources on 2026-11-12/13. Absolute numbers are a snapshot,
+not a guarantee: a later run on the same machine under different load produced
+roughly 2× lower rates on benchmarks unrelated to any code change. Compare ratios
+within one run, and re-run `./scripts/bench.sh` on your target machine. The v0.3.0
+security patch adds one packet-level token-bucket lookup per inbound packet.
 
 | Benchmark | ops | ms | ops/sec | Notes |
 | --- | ---: | ---: | ---: | --- |

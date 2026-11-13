@@ -247,6 +247,14 @@ local function resolveConfig(config: NetworkConfig)
 	if type(defaultBurst) ~= "number" or defaultBurst < 1 then
 		error("RateLimit.Burst must be at least 1", 3)
 	end
+	local packetRate = rateConfig.PacketRate or math.max(defaultRate, 300)
+	local packetBurst = rateConfig.PacketBurst or math.max(defaultBurst, 600)
+	if type(packetRate) ~= "number" or packetRate <= 0 then
+		error("RateLimit.PacketRate must be positive", 3)
+	end
+	if type(packetBurst) ~= "number" or packetBurst < 1 then
+		error("RateLimit.PacketBurst must be at least 1", 3)
+	end
 
 	return {
 		Name = name,
@@ -254,6 +262,8 @@ local function resolveConfig(config: NetworkConfig)
 		PayloadLimits = payloadLimits,
 		DefaultRate = defaultRate,
 		DefaultBurst = defaultBurst,
+		PacketRate = packetRate,
+		PacketBurst = packetBurst,
 		StatsEnabled = config.Stats ~= false,
 	}
 end
@@ -367,6 +377,8 @@ function Network.new(side: Side, config: NetworkConfig?): Network
 		PayloadLimits = self._payloadLimits,
 		DefaultRate = self._defaultRate,
 		DefaultBurst = self._defaultBurst,
+		PacketRate = resolved.PacketRate,
+		PacketBurst = resolved.PacketBurst,
 		DecodePayload = function(data, flags)
 			return self:_decodePayload(data, flags)
 		end,

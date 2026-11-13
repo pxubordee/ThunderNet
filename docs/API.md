@@ -1,8 +1,8 @@
-# ThunderNet API reference
+# ThunderNet For Roblox API reference
 
-This is the complete public API. If you are new, start with the
-[step-by-step tutorial](TUTORIAL.md). For configuration and benchmarks, see the
-[README](../README.md) and [BENCHMARKS.md](BENCHMARKS.md).
+Full name: **ThunderNetworking.** This is the complete public API. If you are
+new, start with the [step-by-step tutorial](TUTORIAL.md). For configuration and
+benchmarks, see the [README](../README.md) and [BENCHMARKS.md](BENCHMARKS.md).
 
 ## Entry points
 
@@ -10,8 +10,10 @@ This is the complete public API. If you are new, start with the
 local ThunderNet = require(game:GetService("ReplicatedStorage"):WaitForChild("ThunderNet"))
 ```
 
-| Function | Result |
+| Field / function | Result |
 | --- | --- |
+| `ThunderNet.DisplayName` | `"ThunderNet For Roblox"` |
+| `ThunderNet.FullName` | `"ThunderNetworking"` |
 | `ThunderNet.Server(config?)` | Creates a server session. Creates the remotes folder. |
 | `ThunderNet.Client(config?)` | Creates a client session. Waits for the server remotes. |
 | `ThunderNet.Init(config?)` | Calls `Server` on the server and `Client` on the client. |
@@ -107,6 +109,19 @@ Priorities: `"Critical"`, `"High"`, `"Normal"`, `"Low"`, `"Background"`.
 
 Backoff base/max/jitter remain session-configured. The receiver caches responses
 for `DedupeTtl` so retries do not re-execute a handler whose response was lost.
+Dedupe entries are bound to the request channel, and in-flight duplicates are
+dropped instead of executed twice.
+
+## Session rate limits
+
+The session config has two independent per-player buckets:
+
+- `RateLimit.Rate` / `Burst` — per-envelope message budget (default 120 / 240).
+- `RateLimit.PacketRate` / `PacketBurst` — packet budget checked before
+  unpacking (default `max(Rate, 300)` / `max(Burst, 600)`).
+
+The packet budget bounds malformed-packet floods without throttling normal
+high-frame-rate batching. Both are server-side.
 
 ## Promise
 
@@ -207,6 +222,8 @@ Byte counts are estimates; ping and real bandwidth are not reported.
 | `QUEUE_OVERFLOW` | Queue depth cap reached; message dropped. |
 | `NO_HANDLER` | Request had no registered handler. |
 | `HANDLER_ERROR` | Request handler threw. |
+| `REQUEST_IN_FLIGHT` | Duplicate request id arrived while the original was still executing. |
+| `REQUEST_ID_CONFLICT` | Request id was already used on a different channel. |
 | `UNKNOWN_RESPONSE` | Response id did not match a pending request. |
 | `RATE_LIMITED` | Rate limit exceeded. |
 | `TIMEOUT`, `CANCELLED`, `REJECTED`, `PLAYER_LEFT`, `DESTROYED` | RPC outcomes. |
