@@ -41,4 +41,4 @@
 - RPC with timeouts, backoff, retries, dedupe cache, cancellation
 - Middleware, statistics, lifecycle cleanup
 - 160-test suite, strict analysis, Roblox Studio Play Solo benchmark sample
-- Draggable `.rbxm` package, Wally manifest, MIT license, release workflow
+- Draggable `.rbxm` package, MIT license, release workflow

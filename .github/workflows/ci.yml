@@ -1,0 +1,40 @@
+name: CI
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Install Rojo
+        run: |
+          curl -fsSL -o rojo.zip \
+            https://github.com/rojo-rbx/rojo/releases/download/v7.7.1/rojo-7.7.1-linux-x86_64.zip
+          unzip -q rojo.zip
+          chmod +x rojo
+          sudo mv rojo /usr/local/bin/rojo
+          rojo --version
+
+      - name: Install Luau
+        run: |
+          curl -fsSL -o luau.zip \
+            https://github.com/luau-lang/luau/releases/download/0.746/luau-ubuntu.zip
+          unzip -q luau.zip -d luau-bin
+          chmod +x luau-bin/luau luau-bin/luau-analyze
+          sudo mv luau-bin/luau luau-bin/luau-analyze /usr/local/bin/
+
+      - name: Verify tests, analysis and packages
+        run: ./scripts/check.sh
+
+      - name: Upload packaged model
+        uses: actions/upload-artifact@v4
+        with:
+          name: ThunderNet-rbxm
+          path: build/ThunderNet-*.rbxm
