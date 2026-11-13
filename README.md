@@ -85,6 +85,7 @@ Priorities: `Critical`, `High`, `Normal`, `Low`, `Background`.
 | Distribution package | **Built successfully** — draggable `.rbxm` at `build/ThunderNet-0.2.0.rbxm` |
 | GitHub release | `v0.2.0` tag drives the bundled `.rbxm`; this is the only supported distribution |
 | Roblox Studio | **Play Solo run completed** — real local server and real remotes, one sample |
+| Release artifact smoke test | **Passed** — `.rbxm` loaded in Studio; server/client events, schema validation and RPC exercised in Play Solo |
 | Real internet latency/bandwidth | **Not measured** — no live-player telemetry claimed |
 
 Engine testing also found and fixed a real bug: oversized batches on
@@ -557,8 +558,8 @@ ThunderNet is published through a GitHub Release only.
 3. Commit, tag `vX.Y.Z`, and push the commit and tag.
 4. The tag workflow builds and attaches `ThunderNet-X.Y.Z.rbxm` to the GitHub
    Release.
-5. Open the release page and verify the `.rbxm` asset is present before
-   announcing it.
+5. Smoke-test the downloaded `.rbxm` in a Play Solo place (event delivery +
+   RPC), then verify the release asset is present before announcing it.
 
 The release workflow only runs on pushed `v*` tags and needs a GitHub remote.
 
