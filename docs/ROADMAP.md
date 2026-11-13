@@ -1,8 +1,8 @@
-# ThunderNet roadmap
+# ThunderNet For Roblox roadmap
 
-This file keeps the feature ideas honest: what is shipping now, what comes next,
-and what is deliberately deferred. ThunderNet's core stays small; heavier
-capabilities must be opt-in and measured.
+Full name: **ThunderNetworking.** This file keeps the feature ideas honest: what
+is shipping now, what comes next, and what is deliberately deferred. ThunderNet's
+core stays small; heavier capabilities must be opt-in and measured.
 
 Guiding rule: **faster, simpler, and more features** cannot all increase at
 once. We buy speed with batching and fewer calls, buy simplicity with presets
@@ -15,11 +15,12 @@ and defaults, and add power behind optional modules and configuration.
 - Per-destination batching with fairness, adaptive delay and reliable/unreliable lanes
 - RPC with timeouts, backoff, retries, dedupe cache, cancellation and promises
 - Middleware, stats, lifecycle cleanup
-- 186-test suite, strict analysis, Rojo build
+- 190-test suite, strict analysis, Rojo build
 - Milestone 1: presets, Init/typed helpers, FireMany/FireExcept, queue caps, Promise.all, validator and permission helpers
 - Milestone 2 (partial): per-request RPC options, protocol/config handshake validation, serializer native fallback, error/drop/rate-limit hooks, per-event inbound middleware, outbound event middleware
+- Security hardening: packet-level rate limiting before unpack, channel-bound RPC dedupe, in-flight duplicate suppression
 - Roblox Studio Play Solo benchmark sample and beginner-friendly benchmark guide
-- Draggable `.rbxm` packaging, MIT license, release workflow
+- Draggable `.rbxm` packaging, embedded MIT notice, checksummed and attested release workflow
 
 ## Milestone 1 — speed, safety and ergonomics (shipped)
 

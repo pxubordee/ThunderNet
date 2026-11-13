@@ -1,5 +1,5 @@
 --!strict
--- ThunderNet server example. Place under ServerScriptService with
+-- ThunderNet For Roblox (ThunderNetworking) server example. Place under ServerScriptService with
 -- ReplicatedStorage.ThunderNet synced by Rojo.
 
 local Players = game:GetService("Players")

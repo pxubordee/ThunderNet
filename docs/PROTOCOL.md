@@ -1,10 +1,10 @@
 # Wire protocol
 
-The protocol is a compact array format carried as the single argument of
-Roblox remotes. The framework version is not embedded in packets: the server
-and client must run the same ThunderNet version and matching
-serializer/compression configuration. Rolling protocol changes require a
-coordinated release.
+ThunderNet For Roblox (full name: ThunderNetworking). The protocol is a compact
+array format carried as the single argument of Roblox remotes. The framework
+version is not embedded in packets: the server and client must run the same
+ThunderNet version and matching serializer/compression configuration. Rolling
+protocol changes require a coordinated release.
 
 ## Opcodes
 

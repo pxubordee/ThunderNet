@@ -25,6 +25,8 @@ export type Config = {
 	PayloadLimits: Validator.PayloadLimits,
 	DefaultRate: number,
 	DefaultBurst: number,
+	PacketRate: number,
+	PacketBurst: number,
 	DecodePayload: (data: any, flags: number?) -> (any, string?),
 	SendEnvelope: (destination: any, envelope: Protocol.Envelope, priority: number, reliable: boolean) -> (),
 	Hooks: {
@@ -60,6 +62,9 @@ export type Dispatcher = State & {
 
 local RESPONSE_PRIORITY = 2
 local SERVER_KEY = "Server"
+-- NUL cannot appear in protocol names, so this bucket can never collide with a
+-- per-event rate-limit bucket.
+local PACKET_BUCKET = "\0packets"
 
 function Dispatcher.new(config: Config): Dispatcher
 	local self: Dispatcher = setmetatable({
@@ -142,6 +147,7 @@ local function respondRequestError(
 	self: Dispatcher,
 	player: any,
 	incomingKey: any,
+	channel: string,
 	id: string,
 	code: string,
 	message: string,
@@ -151,7 +157,7 @@ local function respondRequestError(
 		Code = code,
 		Message = message,
 	})
-	self._config.RequestManager:CompleteIncoming(incomingKey, id, response, now)
+	self._config.RequestManager:CompleteIncoming(incomingKey, channel, id, response, now)
 	self._config.SendEnvelope(player, response, RESPONSE_PRIORITY, true)
 	return response
 end
@@ -280,7 +286,7 @@ local function dispatchRequest(self: Dispatcher, envelope: Protocol.Envelope, pl
 	local requestId = envelope[3] :: string
 	local incomingKey = player or SERVER_KEY
 
-	local status, cached = config.RequestManager:BeginIncoming(incomingKey, requestId, now)
+	local status, cached = config.RequestManager:BeginIncoming(incomingKey, name, requestId, now)
 	if status == "cached" and cached ~= nil then
 		config.SendEnvelope(player, cached, RESPONSE_PRIORITY, true)
 		return
@@ -289,6 +295,22 @@ local function dispatchRequest(self: Dispatcher, envelope: Protocol.Envelope, pl
 			Code = "CANCELLED",
 			Message = "The request was cancelled by the sender",
 		}), RESPONSE_PRIORITY, true)
+		return
+	elseif status == "inflight" then
+		stats.DroppedPackets += 1
+		notifyDrop(self, "REQUEST_IN_FLIGHT", "A request with this id is already in flight", {
+			Channel = name,
+			Player = player,
+			RequestId = requestId,
+		})
+		return
+	elseif status == "mismatch" then
+		stats.DroppedPackets += 1
+		notifyDrop(self, "REQUEST_ID_CONFLICT", "Request id was already used on a different channel", {
+			Channel = name,
+			Player = player,
+			RequestId = requestId,
+		})
 		return
 	end
 
@@ -299,6 +321,7 @@ local function dispatchRequest(self: Dispatcher, envelope: Protocol.Envelope, pl
 			self,
 			player,
 			incomingKey,
+			name,
 			requestId,
 			"INVALID_PAYLOAD",
 			"Could not decode the request payload",
@@ -314,6 +337,7 @@ local function dispatchRequest(self: Dispatcher, envelope: Protocol.Envelope, pl
 			self,
 			player,
 			incomingKey,
+			name,
 			requestId,
 			"INVALID_PAYLOAD",
 			"The request payload failed validation",
@@ -345,7 +369,7 @@ local function dispatchRequest(self: Dispatcher, envelope: Protocol.Envelope, pl
 					message = rejection.Message
 				end
 			end
-			respondRequestError(self, player, incomingKey, requestId, code, message, now)
+			respondRequestError(self, player, incomingKey, name, requestId, code, message, now)
 			return
 		end
 		data = (finalContext :: Middleware.Context).Data
@@ -358,6 +382,7 @@ local function dispatchRequest(self: Dispatcher, envelope: Protocol.Envelope, pl
 			self,
 			player,
 			incomingKey,
+			name,
 			requestId,
 			"NO_HANDLER",
 			"No request handler is registered",
@@ -385,7 +410,7 @@ local function dispatchRequest(self: Dispatcher, envelope: Protocol.Envelope, pl
 		})
 	end
 
-	config.RequestManager:CompleteIncoming(incomingKey, requestId, response, now)
+	config.RequestManager:CompleteIncoming(incomingKey, name, requestId, response, now)
 	config.SendEnvelope(player, response, RESPONSE_PRIORITY, true)
 end
 
@@ -439,6 +464,7 @@ local function dispatchEnvelope(self: Dispatcher, envelope: Protocol.Envelope, r
 					self,
 					player,
 					player,
+					envelope[2],
 					envelope[3],
 					"RATE_LIMITED",
 					"Too many requests",
@@ -469,6 +495,21 @@ local function handlePacket(self: Dispatcher, packet: any, reliableLane: boolean
 	end
 	local config = self._config
 	local stats = statsOf(self)
+
+	if config.Side == "Server" then
+		local allowed, retryAfter = config.RateLimiter:Allow(
+			player,
+			PACKET_BUCKET,
+			config.PacketRate,
+			config.PacketBurst,
+			now
+		)
+		if not allowed then
+			stats.RateLimited += 1
+			notifyRateLimited(self, player, nil, retryAfter)
+			return
+		end
+	end
 
 	local messages, unpackError = Protocol.Unpack(packet, config.ProtocolLimits)
 	if messages == nil then

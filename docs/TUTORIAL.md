@@ -1,7 +1,9 @@
-# Build your first ThunderNet feature
+# Build your first ThunderNet For Roblox feature
 
-This tutorial assumes you know how to make a Roblox `Script`/`LocalScript` and
-run the game in Studio. You do not need to know networking frameworks.
+ThunderNet For Roblox (full name: **ThunderNetworking**) is a typed,
+server-authoritative networking framework. This tutorial assumes you know how to
+make a Roblox `Script`/`LocalScript` and run the game in Studio. You do not need
+to know networking frameworks.
 
 You will build:
 
@@ -17,14 +19,17 @@ The complete API is in [API.md](API.md).
 
 ## Step 0 — Install ThunderNet
 
-ThunderNet is distributed as a single `.rbxm` on GitHub Releases.
+ThunderNet For Roblox is distributed as a single `.rbxm` on GitHub Releases.
 
 1. Open the [latest GitHub Release](https://github.com/pxubordee/ThunderNet/releases/latest).
-2. Download `ThunderNet-<version>.rbxm`.
-3. In Studio, open **Explorer**, select **ReplicatedStorage**, and drag the file
+2. Download `ThunderNet-<version>.rbxm` and its `.sha256` checksum.
+3. Verify the checksum (Linux: `sha256sum -c file.sha256`; macOS:
+   `shasum -a 256 -c file.sha256`).
+4. In Studio, open **Explorer**, select **ReplicatedStorage**, and drag the file
    in.
-4. Confirm a `ModuleScript` named `ThunderNet` exists with `Core`, `Features`,
-   `Security`, `Transport`, `Utilities`, and `Types` folders.
+5. Confirm a `ModuleScript` named `ThunderNet` exists with `Core`, `Features`,
+   `Security`, `Transport`, `Utilities`, and `Types` folders, plus a `LICENSE`
+   StringValue with the MIT notice.
 
 This is the only supported installation method. The source repository is for
 developing the framework itself.

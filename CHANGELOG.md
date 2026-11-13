@@ -1,5 +1,52 @@
 # Changelog
 
+## 0.3.0 — 2026-11-13
+
+### Security
+
+- Added a packet-level token bucket before `Protocol.Unpack`, so malformed
+  packet floods consume the same rate-limit budget as valid traffic. The packet
+  budget is separate from the message budget (`PacketRate`/`PacketBurst`,
+  defaulting to `max(Rate, 300)` / `max(Burst, 600)`) so high frame-rate batching
+  is not throttled.
+- Bound RPC dedupe entries to the request channel. A replayed request id on a
+  different channel is now dropped as `REQUEST_ID_CONFLICT`.
+- Added in-flight duplicate suppression: a duplicate request arriving while the
+  original handler is still executing is dropped as `REQUEST_IN_FLIGHT`.
+- Added regression tests for both fixes.
+
+### Added
+
+- Branding constants: `ThunderNet.DisplayName` (`"ThunderNet For Roblox"`) and
+  `ThunderNet.FullName` (`"ThunderNetworking"`).
+- The full MIT notice is embedded in the distributed `.rbxm` as the `LICENSE`
+  StringValue.
+- Root `SECURITY.md` with private reporting guidance, supported versions and an
+  audit disclaimer.
+- `CONTRIBUTING.md`, `CODE_OF_CONDUCT.md`, issue/PR templates and Dependabot
+  configuration for GitHub Actions.
+- Release checksum asset (`ThunderNet-<version>.rbxm.sha256`) and build
+  provenance attestation.
+- Release notes now include install steps, checksum verification, license and
+  security links.
+
+### Changed
+
+- CI and release workflows pin GitHub Actions by commit SHA, download Rojo and
+  Luau with verified SHA-256 checksums, and use least-privilege permissions.
+- README and documentation use the display name **ThunderNet For Roblox** and
+  full name **ThunderNetworking.**
+- Documented the corrected inbound check order and the new RPC drop codes.
+- The release workflow re-runs the full test/analysis/package check before
+  publishing.
+
+### Tests
+
+- 190 automated tests passing; strict analysis clean; dev place and `.rbxm`
+  package builds verified.
+- The new package embeds the MIT `LICENSE` child; Studio smoke testing of the
+  v0.3.0 artifact is a release checklist step.
+
 ## 0.2.0 — 2026-11-13
 
 ### Added

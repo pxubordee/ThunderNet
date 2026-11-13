@@ -46,6 +46,8 @@ export type RequestConfig = {
 export type RateLimitConfig = {
 	Rate: number?,
 	Burst: number?,
+	PacketRate: number?,
+	PacketBurst: number?,
 }
 
 export type SerializerConfig = {

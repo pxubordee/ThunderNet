@@ -1,0 +1,52 @@
+name: Feature request
+description: Propose a new capability or API for ThunderNet
+title: "[Feature]: "
+labels: ["enhancement"]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem
+      description: What are you trying to do, and what currently makes it hard?
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed solution
+      description: Describe the API or behavior you want. Include a small usage example if possible.
+      render: lua
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+      description: Existing workarounds, native Roblox APIs, or other designs you considered.
+    validations:
+      required: false
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      options:
+        - Events and channels
+        - Batching and priorities
+        - RPC
+        - Middleware
+        - Serializer and compression
+        - Security and validation
+        - Statistics and lifecycle
+        - Documentation and packaging
+        - Other
+    validations:
+      required: true
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Checklist
+      options:
+        - label: I searched existing issues and did not find a duplicate.
+          required: true
+        - label: This is a framework capability, not game-specific logic.
+          required: true

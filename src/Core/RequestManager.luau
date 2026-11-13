@@ -66,11 +66,18 @@ type PendingRecord = {
 type DedupeEntry = {
 	Envelope: Protocol.Envelope,
 	ExpiresAt: number,
+	Channel: string,
+}
+
+type InFlightEntry = {
+	Channel: string,
+	StartedAt: number,
 }
 
 type PlayerIncoming = {
 	Cache: { [string]: DedupeEntry },
 	Order: { string },
+	InFlight: { [string]: InFlightEntry },
 	Cancelled: { [string]: number },
 	CancelledOrder: { string },
 }
@@ -108,8 +115,15 @@ export type RequestManager = State & {
 	HandleResponse: (self: RequestManager, envelope: Protocol.Envelope, senderPlayer: any) -> boolean,
 	Step: (self: RequestManager, now: number) -> (),
 	GetPendingCount: (self: RequestManager) -> number,
-	BeginIncoming: (self: RequestManager, player: any, id: string, now: number) -> (string, Protocol.Envelope?),
-	CompleteIncoming: (self: RequestManager, player: any, id: string, response: Protocol.Envelope, now: number) -> (),
+	BeginIncoming: (self: RequestManager, player: any, channel: string, id: string, now: number) -> (string, Protocol.Envelope?),
+	CompleteIncoming: (
+		self: RequestManager,
+		player: any,
+		channel: string,
+		id: string,
+		response: Protocol.Envelope,
+		now: number
+	) -> (),
 	HandleCancel: (self: RequestManager, player: any, id: string, now: number) -> (),
 	GetDedupeCount: (self: RequestManager, player: any?) -> number,
 	OnPlayerRemoving: (self: RequestManager, player: any) -> (),
@@ -338,6 +352,7 @@ local function newIncoming(): PlayerIncoming
 	return {
 		Cache = {} :: { [string]: DedupeEntry },
 		Order = {} :: { string },
+		InFlight = {} :: { [string]: InFlightEntry },
 		Cancelled = {} :: { [string]: number },
 		CancelledOrder = {} :: { string },
 	}
@@ -352,7 +367,13 @@ local function getIncoming(self: RequestManager, player: any, create: boolean): 
 	return incoming
 end
 
-local function beginIncoming(self: RequestManager, player: any, id: string, now: number): (string, Protocol.Envelope?)
+local function beginIncoming(
+	self: RequestManager,
+	player: any,
+	channel: string,
+	id: string,
+	now: number
+): (string, Protocol.Envelope?)
 	local incoming = getIncoming(self, player, true) :: PlayerIncoming
 
 	local cancelledAt = incoming.Cancelled[id]
@@ -363,14 +384,29 @@ local function beginIncoming(self: RequestManager, player: any, id: string, now:
 		incoming.Cancelled[id] = nil
 	end
 
+	local inFlight = incoming.InFlight[id]
+	if inFlight ~= nil then
+		if now - inFlight.StartedAt > self._config.DedupeTtl then
+			incoming.InFlight[id] = nil
+		elseif inFlight.Channel ~= channel then
+			return "mismatch", nil
+		else
+			return "inflight", nil
+		end
+	end
+
 	local entry = incoming.Cache[id]
 	if entry ~= nil then
 		if now < entry.ExpiresAt then
+			if entry.Channel ~= channel then
+				return "mismatch", nil
+			end
 			return "cached", entry.Envelope
 		end
 		incoming.Cache[id] = nil
 	end
 
+	incoming.InFlight[id] = { Channel = channel, StartedAt = now }
 	return "execute", nil
 end
 RequestManager.BeginIncoming = beginIncoming
@@ -378,17 +414,20 @@ RequestManager.BeginIncoming = beginIncoming
 local function completeIncoming(
 	self: RequestManager,
 	player: any,
+	channel: string,
 	id: string,
 	response: Protocol.Envelope,
 	now: number
 )
 	local incoming = getIncoming(self, player, true) :: PlayerIncoming
+	incoming.InFlight[id] = nil
 	if incoming.Cache[id] == nil then
 		table.insert(incoming.Order, id)
 	end
 	incoming.Cache[id] = {
 		Envelope = response,
 		ExpiresAt = now + self._config.DedupeTtl,
+		Channel = channel,
 	}
 	while #incoming.Order > self._config.DedupeMaxEntries do
 		local evicted = table.remove(incoming.Order, 1) :: string

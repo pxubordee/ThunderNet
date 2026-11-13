@@ -505,6 +505,42 @@ describe("Network security", function()
 		end)
 	end)
 
+	it("uses a packet budget separate from the message rate limit", function()
+		withNetworks(function(env)
+			local player = env.player("Alice")
+			local server = env.server({
+				RateLimit = { Rate = 1, Burst = 1, PacketRate = 100, PacketBurst = 100 },
+			})
+			env.client(player)
+			local view = env.remoteView(player)
+			for _ = 1, 5 do
+				view:FireServer({ 999 })
+			end
+			Runtime.advanceFrames(2)
+			local stats = server:GetStats()
+			Expect(stats.MalformedPackets):toBe(5)
+			Expect(stats.RateLimited):toBe(0)
+		end)
+	end)
+
+	it("rate limits malformed packets before unpacking them", function()
+		withNetworks(function(env)
+			local player = env.player("Alice")
+			local server = env.server({
+				RateLimit = { Rate = 1, Burst = 2, PacketRate = 1, PacketBurst = 2 },
+			})
+			env.client(player)
+			local view = env.remoteView(player)
+			for _ = 1, 5 do
+				view:FireServer({ 999 })
+			end
+			Runtime.advanceFrames(2)
+			local stats = server:GetStats()
+			Expect(stats.MalformedPackets):toBe(2)
+			Expect(stats.RateLimited):toBe(3)
+		end)
+	end)
+
 	it("drops malformed packets without disturbing later traffic", function()
 		withNetworks(function(env)
 			local player = env.player("Alice")

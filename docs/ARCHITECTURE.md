@@ -1,9 +1,10 @@
 # Architecture
 
-ThunderNet is a session object (`ThunderNet.Server()` / `ThunderNet.Client()`)
-that wires together small, independently tested modules. Everything inbound is
-validated before it touches game code; everything outbound is encoded once,
-measured, queued per destination and flushed on a heartbeat.
+ThunderNet For Roblox (full name: ThunderNetworking) is a session object
+(`ThunderNet.Server()` / `ThunderNet.Client()`) that wires together small,
+independently tested modules. Everything inbound is validated before it touches
+game code; everything outbound is encoded once, measured, queued per destination
+and flushed on a heartbeat.
 
 ## Module map
 

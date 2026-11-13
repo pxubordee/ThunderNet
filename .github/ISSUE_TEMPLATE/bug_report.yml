@@ -1,0 +1,67 @@
+name: Bug report
+description: Report a reproducible defect in ThunderNet
+title: "[Bug]: "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Do not report security vulnerabilities here. Follow
+        [SECURITY.md](https://github.com/pxubordee/ThunderNet/blob/main/SECURITY.md)
+        instead.
+  - type: input
+    id: version
+    attributes:
+      label: ThunderNet version
+      description: The release tag or VERSION value you are using.
+      placeholder: "0.3.0"
+    validations:
+      required: true
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened?
+      description: Describe the actual behavior and what you expected instead.
+    validations:
+      required: true
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Minimal reproduction
+      description: The smallest server/client snippet, configuration, and steps that reproduce the issue.
+      render: lua
+    validations:
+      required: true
+  - type: textarea
+    id: config
+    attributes:
+      label: Configuration
+      description: Relevant options such as RateLimit, Payload, Serializer, Compression, Batch, or middleware.
+      render: lua
+    validations:
+      required: false
+  - type: input
+    id: environment
+    attributes:
+      label: Environment
+      description: Roblox Studio version, Luau CLI version, server/client side, and whether the issue reproduces in Play Solo.
+      placeholder: "Roblox Studio 0.xxx, Luau 0.746, server, Play Solo"
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs and statistics
+      description: Output, stack traces, and relevant `GetStats()` values. Remove secrets and personal data.
+      render: text
+    validations:
+      required: false
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Checklist
+      options:
+        - label: I searched existing issues and did not find a duplicate.
+          required: true
+        - label: This report does not contain a security vulnerability.
+          required: true
