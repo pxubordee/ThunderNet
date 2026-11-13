@@ -15,7 +15,7 @@ without giving up native Roblox remotes.</p>
 
 <p>
 <img alt="Luau strict" src="https://img.shields.io/badge/Luau-strict-2F7DFF">
-<img alt="160 tests passing" src="https://img.shields.io/badge/tests-160%20passing-2ECC71">
+<img alt="182 tests passing" src="https://img.shields.io/badge/tests-182%20passing-2ECC71">
 <img alt="Rojo 7.7.1" src="https://img.shields.io/badge/Rojo-7.7.1-orange">
 <img alt="Roblox Studio Play Solo verified" src="https://img.shields.io/badge/Roblox%20Studio-Play%20Solo%20verified-6C5CE7">
 <img alt="Benchmarks simulated and engine" src="https://img.shields.io/badge/benchmarks-simulated%20%2B%20engine-4CC9FF">
@@ -55,7 +55,7 @@ remotes — with its costs measured and documented.
 
 | Check | Result |
 | --- | --- |
-| Automated tests | **160 passed / 0 failed** — Luau CLI with a simulated Roblox environment |
+| Automated tests | **182 passed / 0 failed** — Luau CLI with a simulated Roblox environment |
 | Strict type analysis | **Clean** — cross-module `luau-analyze --mode=strict` |
 | Rojo build | **Succeeds** — dev place + `build/ThunderNet-0.1.0.rbxm` package |
 | Distribution package | **Built successfully** — draggable `.rbxm` at `build/ThunderNet-0.1.0.rbxm` |
@@ -68,6 +68,11 @@ Engine testing also found and fixed a real bug: oversized batches on
 unreliable messages one per call by default. See
 [Benchmarks, Explained Simply](BENCHMARKS-SIMPLE.md) or the technical
 [docs/BENCHMARKS.md](docs/BENCHMARKS.md).
+
+On client startup, the server publishes a protocol version and codec flags;
+clients validate them and fail early with a clear error on mismatch. Event
+definitions (for example, unreliable events) still need matching options; full
+event sync is planned.
 
 ## Contents
 
@@ -214,6 +219,15 @@ end):Catch(function(err)
 end)
 ```
 
+**Shortcuts:** `ThunderNet.Init()` detects server vs client automatically, and
+`ThunderNet.Event<T>(Net, name, options)` creates a typed handle without the cast
+pattern:
+
+```lua
+local Net = ThunderNet.Init({ Preset = "Standard" })
+local Combat = ThunderNet.Event<CombatData>(Net, "Combat", { Priority = "High" })
+```
+
 **Typing note:** Luau does not allow explicit type arguments on method calls.
 Write `local Event = Net:CreateEvent("Name") :: ThunderNet.TypedEvent<T>`, not
 `Net:CreateEvent<T>("Name")`. Runtime schema validation is separate from these
@@ -244,6 +258,8 @@ event.OnClientEvent:Connect(function(data) end)         -- client
 event:FireServer(data)                                  -- client → server
 event:FireClient(player, data)                          -- server → one player
 event:FireAll(data)                                     -- server → all players
+event:FireExcept(player, data)                          -- server → all except one
+event:FireMany({ playerA, playerB }, data)              -- server → a list
 ```
 
 Per-call priority overrides: `event:FireClient(player, data, "Critical")`.
@@ -279,10 +295,25 @@ end)
 
 -- client
 local result = Net:InvokeServer("Purchase", { ItemId = 1 }):Await()
+
+-- per-request options
+local purchase = Net:InvokeServer("Purchase", { ItemId = 1 }, {
+    Timeout = 2,
+    MaxAttempts = 2,
+    Idempotent = false, -- forces one attempt
+})
+
+-- several requests at once
+local results = ThunderNet.Promise.all({
+    Net:InvokeServer("Purchase", { ItemId = 1 }),
+    Net:InvokeServer("Purchase", { ItemId = 2 }),
+}):Await()
 ```
 
 - Unique ids, per-attempt timeout, exponential backoff with jitter, bounded
   retries.
+- Per-call `RequestOptions`: `Timeout`, `MaxAttempts`, and `Idempotent = false`
+  (forces a single attempt). Backoff stays session-configured.
 - The receiver caches responses for `DedupeTtl`, so retries never re-execute a
   non-idempotent handler.
 - `promise:Cancel()` sends a cancel envelope; late requests are not executed.
@@ -326,7 +357,9 @@ Both are **off by default**; native Roblox values are used otherwise.
 
 - Binary serializer supports nil, booleans, finite numbers, strings, tables,
   `Vector2`, `Vector3`, `CFrame`, `Color3`, `UDim`, `UDim2`. Instances,
-  `EnumItem`, functions and buffers are rejected.
+  `EnumItem`, functions and buffers are rejected. Set
+  `FallbackToNative = true` to send unsupported payloads natively with a warning
+  instead of throwing.
 - Decoding is bounds-checked and never throws; it rejects truncated, oversized,
   too-deep and trailing data.
 - Compression uses a pluggable `{ Name, Encode, Decode }` codec; the built-in RLE
@@ -350,6 +383,10 @@ Server-authoritative checks run before expensive work:
 The framework cannot validate game meaning. Your server must still verify
 damage, currency, inventory, prices, ownership and cooldowns independently.
 
+Extra helpers: `Validator.Literal`, `Validator.OneOf` and `Validator.Map` cover
+common shapes, while `Permissions.GroupRank`, `Permissions.HasAttribute`,
+`Permissions.UserIds` and `Permissions.Compose` cover authorization patterns.
+
 ### Statistics
 
 `Net:GetStats()` returns packet/message/batch counters, average batch size,
@@ -370,13 +407,20 @@ queues, pending requests and rate-limit buckets.
 
 ## Configuration
 
+`Preset = "Minimal" | "Standard" | "Hardened"` merges sensible defaults; explicit
+options always win. Minimal disables dispatch timing, tightens retries and
+limits; Standard is the default; Hardened tightens payload/rate limits and
+dedupe retention.
+
 ```lua
 local Net = ThunderNet.Server({
     Name = "ThunderNet",
+    Preset = "Standard",
     Stats = true,
     Batch = {
         MaxBatchSize = 64,
         MaxBatchBytes = 16384,
+        MaxQueueDepth = 32768,
         FlushInterval = 0,
         Adaptive = false,
         MaxLatency = 0.05,
@@ -400,7 +444,7 @@ local Net = ThunderNet.Server({
         MaxNameLength = 128,
         MaxRequestIdLength = 64,
     },
-    Serializer = { Enabled = false },
+    Serializer = { Enabled = false, FallbackToNative = false },
     Compression = { Enabled = false, Threshold = 256, MinSavingsRatio = 0.9 },
 })
 ```
@@ -447,7 +491,7 @@ simple guide: [BENCHMARKS-SIMPLE.md](BENCHMARKS-SIMPLE.md).
 
 ```bash
 ./scripts/check.sh   # tests + strict analysis + Rojo build
-./scripts/test.sh    # 160-test suite only
+./scripts/test.sh    # 182-test suite only
 node scripts/analyze.mjs
 ./scripts/package.sh # build the draggable .rbxm
 ./scripts/bench.sh   # CLI CPU benchmarks
@@ -455,9 +499,10 @@ node scripts/analyze.mjs
 
 The automated suite covers initialization, event delivery, destination
 isolation, batching/priority fairness, unreliable enforcement, middleware, RPC
-timeouts/retries/dedupe/cancel, rate limits, malformed packets, payload/schema
-validation, permissions, player cleanup, compression round-trips, statistics and
-lifecycle cleanup.
+timeouts/retries/dedupe/cancel/per-call options, rate limits, malformed packets,
+payload/schema validation, permissions, player cleanup, compression round-trips,
+statistics, queue overflow, presets, Promise.all, handshake validation,
+serializer fallback and lifecycle cleanup.
 
 The suite runs on a deterministic simulated Roblox environment. A separate
 Roblox Studio Play Solo benchmark session verified real remote delivery and
@@ -539,6 +584,7 @@ ThunderNet/
 | [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | Module responsibilities, data flow, lifecycle, trade-offs |
 | [docs/PROTOCOL.md](docs/PROTOCOL.md) | Envelope layouts, opcodes, flags, validation, request lifecycle |
 | [docs/SECURITY.md](docs/SECURITY.md) | Threat model, check ordering, limits, dedupe trade-offs |
+| [docs/ROADMAP.md](docs/ROADMAP.md) | Shipped capabilities and the planned performance/simplicity/feature milestones |
 
 ---
 
@@ -555,6 +601,7 @@ ThunderNet/
 | Stats are estimates | Payload measurement, not real wire bytes, ping or bandwidth. |
 | CLI tests are a simulation | Engine behavior was sampled once in Studio; it is not a CI test suite. |
 | No real-network benchmark | Live latency, loss and bandwidth require telemetry with real players. |
+| Queue cap drops new messages when full | `MaxQueueDepth` applies per lane and rejects new messages (all priorities) until the queue drains; tune it and watch `QueueOverflow`. |
 
 ## Troubleshooting
 
@@ -564,8 +611,8 @@ ThunderNet/
   use a unique `Name`.
 - **Messages disappear** — inspect `GetStats()`: `MalformedPackets`,
   `DroppedPackets`, `PayloadRejected`, `RateLimited`, `PermissionsDenied`.
-- **`INVALID_PAYLOAD`** — ensure both sides use matching serializer/compression
-  settings and the payload fits limits and supported types.
+- **`INVALID_PAYLOAD`** — startup handshake catches protocol/codec mismatches;
+  payloads must still fit limits and supported types.
 - **Serializer throws on a type** — Instances, EnumItems, functions and buffers
   cannot be binary-serialized; switch to native mode.
 - **Requests time out** — handlers must return promptly; tune `Request` timeouts

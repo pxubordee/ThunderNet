@@ -76,6 +76,52 @@ function Promise.reject(reason: any): Promise
 	return promise
 end
 
+function Promise.all(items: { any }): Promise
+	local combined = Promise.new()
+	local count = #items
+	if count == 0 then
+		combined:Resolve({})
+		return combined
+	end
+
+	local results: { [number]: any } = {}
+	local remaining = count
+	local settled = false
+
+	for index = 1, count do
+		local item = items[index]
+		local promise: Promise
+		if type(item) == "table" and type(item.AndThen) == "function" then
+			promise = item :: Promise
+		else
+			promise = Promise.resolve(item)
+		end
+		promise
+			:AndThen(function(value: any): any
+				if settled then
+					return nil
+				end
+				results[index] = value
+				remaining -= 1
+				if remaining == 0 then
+					settled = true
+					combined:Resolve(results)
+				end
+				return nil
+			end)
+			:Catch(function(err: any): any
+				if settled then
+					return nil
+				end
+				settled = true
+				combined:Reject(err)
+				return nil
+			end)
+	end
+
+	return combined
+end
+
 local function forward(handler: (any) -> any, value: any, nextPromise: Promise)
 	local ok, result = pcall(handler, value)
 	if ok then

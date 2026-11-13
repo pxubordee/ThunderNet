@@ -18,6 +18,7 @@ Batcher.__index = Batcher
 export type Config = {
 	MaxBatchSize: number?,
 	MaxBatchBytes: number?,
+	MaxQueueDepth: number?,
 	FlushInterval: number?,
 	Adaptive: boolean?,
 	MaxLatency: number?,
@@ -59,6 +60,7 @@ type DestinationState = {
 type ResolvedConfig = {
 	MaxBatchSize: number,
 	MaxBatchBytes: number,
+	MaxQueueDepth: number,
 	FlushInterval: number,
 	Adaptive: boolean,
 	MaxLatency: number,
@@ -84,7 +86,7 @@ export type Batcher = State & {
 		reliable: boolean,
 		bytes: number?,
 		now: number
-	) -> (),
+	) -> boolean,
 	GetQueueDepth: (self: Batcher) -> number,
 	GetDestinationCount: (self: Batcher) -> number,
 	Flush: (self: Batcher, destination: any?) -> (),
@@ -153,6 +155,7 @@ local function resolveConfig(config: Config?): ResolvedConfig
 	local resolved: ResolvedConfig = {
 		MaxBatchSize = (config and config.MaxBatchSize) or 64,
 		MaxBatchBytes = (config and config.MaxBatchBytes) or 16384,
+		MaxQueueDepth = (config and config.MaxQueueDepth) or 32768,
 		FlushInterval = (config and config.FlushInterval) or 0,
 		Adaptive = config ~= nil and config.Adaptive == true,
 		MaxLatency = (config and config.MaxLatency) or 0.05,
@@ -165,6 +168,9 @@ local function resolveConfig(config: Config?): ResolvedConfig
 	end
 	if resolved.MaxBatchBytes < 1 then
 		error("Batcher MaxBatchBytes must be positive", 3)
+	end
+	if resolved.MaxQueueDepth < 1 or resolved.MaxQueueDepth % 1 ~= 0 then
+		error("Batcher MaxQueueDepth must be a positive integer", 3)
 	end
 	if resolved.FlushInterval < 0 then
 		error("Batcher FlushInterval must be non-negative", 3)
@@ -236,6 +242,9 @@ local function push(
 		self._destinations[destination] = state
 	end
 	local lane = if reliable then state.Reliable else state.Unreliable
+	if lane.TotalCount >= self._config.MaxQueueDepth then
+		return false
+	end
 
 	if lane.TotalCount == 0 then
 		lane.FirstQueuedAt = now
@@ -249,6 +258,7 @@ local function push(
 		Bytes = byteSize,
 	})
 	self._queuedTotal += 1
+	return true
 end
 Batcher.Push = push
 

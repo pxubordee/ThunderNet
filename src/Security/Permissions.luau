@@ -29,6 +29,45 @@ function Permissions.UserIds(userIds: { number }): PermissionFunction
 	end
 end
 
+function Permissions.GroupRank(groupId: number, minimumRank: number): PermissionFunction
+	if type(groupId) ~= "number" or type(minimumRank) ~= "number" then
+		error("Permissions.GroupRank expects numeric groupId and minimumRank", 2)
+	end
+	return function(player: any, _data: any): (boolean, string?)
+		local ok, rank = pcall(function()
+			return player:GetRankInGroup(groupId)
+		end)
+		if ok and type(rank) == "number" and rank >= minimumRank then
+			return true, nil
+		end
+		return false, "PERMISSION_DENIED"
+	end
+end
+
+function Permissions.HasAttribute(attributeName: string, expected: any): PermissionFunction
+	if type(attributeName) ~= "string" or #attributeName == 0 then
+		error("Permissions.HasAttribute expects a non-empty attribute name", 2)
+	end
+	return function(player: any, _data: any): (boolean, string?)
+		local ok, value = pcall(function()
+			return player:GetAttribute(attributeName)
+		end)
+		if not ok then
+			return false, "PERMISSION_DENIED"
+		end
+		if expected == nil then
+			if value then
+				return true, nil
+			end
+			return false, "PERMISSION_DENIED"
+		end
+		if value == expected then
+			return true, nil
+		end
+		return false, "PERMISSION_DENIED"
+	end
+end
+
 function Permissions.Custom(check: PermissionFunction): PermissionFunction
 	if type(check) ~= "function" then
 		error("Permissions.Custom expects a function", 2)
