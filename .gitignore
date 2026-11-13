@@ -7,7 +7,4 @@ benchmarks/cli/generated/
 *.rbxm
 *.rbxmx
 .analyze/
-Packages/
-ServerPackages/
-DevPackages/
-wally.lock
+ServerDev

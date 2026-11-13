@@ -15,6 +15,7 @@ without giving up native Roblox remotes.</p>
 </p>
 
 <p>
+<a href="https://github.com/pxubordee/ThunderNet/actions/workflows/ci.yml"><img alt="CI" src="https://github.com/pxubordee/ThunderNet/actions/workflows/ci.yml/badge.svg"></a>
 <img alt="Luau strict" src="https://img.shields.io/badge/Luau-strict-2F7DFF">
 <img alt="186 tests passing" src="https://img.shields.io/badge/tests-186%20passing-2ECC71">
 <img alt="Rojo 7.7.1" src="https://img.shields.io/badge/Rojo-7.7.1-orange">
@@ -82,7 +83,7 @@ Priorities: `Critical`, `High`, `Normal`, `Low`, `Background`.
 | Strict type analysis | **Clean** — cross-module `luau-analyze --mode=strict` |
 | Rojo build | **Succeeds** — dev place + `build/ThunderNet-0.2.0.rbxm` package |
 | Distribution package | **Built successfully** — draggable `.rbxm` at `build/ThunderNet-0.2.0.rbxm` |
-| GitHub release / Wally | `v0.2.0` tag drives the bundled `.rbxm` release; Wally manifest is ready but publication is manual |
+| GitHub release | `v0.2.0` tag drives the bundled `.rbxm`; this is the only supported distribution |
 | Roblox Studio | **Play Solo run completed** — real local server and real remotes, one sample |
 | Real internet latency/bandwidth | **Not measured** — no live-player telemetry claimed |
 
@@ -118,65 +119,23 @@ event sync is planned.
 
 ## Installation
 
-### Option 1 — drag and drop (easiest)
+ThunderNet is distributed as a single compiled `.rbxm` model from GitHub
+Releases. This is currently the **only supported way to get ThunderNet**.
 
-Download the latest `ThunderNet-<version>.rbxm` from
-[GitHub Releases](https://github.com/pxubordee/ThunderNet/releases/latest) and
-drag it into Roblox Studio's Explorer under `ReplicatedStorage`. You get a
-`ModuleScript` named `ThunderNet`:
+1. Open the [latest GitHub Release](https://github.com/pxubordee/ThunderNet/releases/latest).
+2. Download `ThunderNet-<version>.rbxm`.
+3. In Roblox Studio, open **Explorer**, select **ReplicatedStorage**, and drag
+   the file in.
+4. Confirm there is a `ModuleScript` named `ThunderNet` with `Core`,
+   `Features`, `Security`, `Transport`, `Utilities`, and `Types` folders inside.
+5. Require it:
 
 ```lua
 local ThunderNet = require(game:GetService("ReplicatedStorage"):WaitForChild("ThunderNet"))
 ```
 
-No Rojo or Wally required. The release file is built from this source tree. If
-no GitHub Release exists yet, build it locally with `./scripts/package.sh` and
-share `build/ThunderNet-<version>.rbxm`.
-
-### Option 2 — Wally
-
-The repo includes a Wally manifest for `pxubordee/thundernet`. Once it is
-published, add it to your `wally.toml` and install:
-
-```toml
-[dependencies]
-ThunderNet = "pxubordee/thundernet@0.2.0"
-```
-
-```bash
-wally install
-```
-
-Map the Wally `Packages` folder into `ReplicatedStorage` (for example
-`ReplicatedStorage.Packages`) and require `Packages.ThunderNet`. Publishing is a
-manual maintainer step; see [Releasing](#releasing).
-
-### Option 3 — Rojo from source (development)
-
-Clone the repo and serve the development project:
-
-```bash
-cd ThunderNet
-rojo serve dev.project.json
-```
-
-`dev.project.json` maps source, examples and tests for development.
-`default.project.json` is the package project used to build the `.rbxm` and the
-Wally blob — it is not the place-development project.
-
-Development mapping:
-
-| Source | Destination |
-| --- | --- |
-| `src/` | `ReplicatedStorage.ThunderNet` |
-| `examples/Server.server.luau` | `ServerScriptService.ThunderNetExamples.Server` |
-| `examples/Client.client.luau` | `StarterPlayer.StarterPlayerScripts.ThunderNetExample` |
-| `tests/` | `ServerScriptService.ThunderNetTests` (remove for production) |
-
-### Option 4 — Creator Store / Toolbox (optional, manual)
-
-Upload `build/ThunderNet-<version>.rbxm` as a model asset if you want Toolbox
-distribution. This is not automated and nothing is published there yet.
+No Rojo, package-manager, or Creator Store install is offered at this time. The source repository is for development and testing of the framework
+itself, not a consumer installation path.
 
 ---
 
@@ -591,13 +550,15 @@ caught the unreliable batching bug; engine runs are not part of `check.sh`.
 
 ## Releasing
 
-1. Update `VERSION` and `version` in `wally.toml` to the same value.
-2. Run `./scripts/check.sh` (it builds the dev place and the `.rbxm` package).
-3. Commit, tag `vX.Y.Z`, and push the tag.
-4. GitHub Actions builds and attaches `ThunderNet-X.Y.Z.rbxm` to the release.
-5. Publish to Wally with `wally publish` (requires a Wally account/token and the
-   matching `wally.toml`).
-6. Optional: upload the same `.rbxm` to the Creator Store.
+ThunderNet is published through a GitHub Release only.
+
+1. Update `VERSION`.
+2. Run `./scripts/check.sh` (tests, analysis, dev place and `.rbxm` build).
+3. Commit, tag `vX.Y.Z`, and push the commit and tag.
+4. The tag workflow builds and attaches `ThunderNet-X.Y.Z.rbxm` to the GitHub
+   Release.
+5. Open the release page and verify the `.rbxm` asset is present before
+   announcing it.
 
 The release workflow only runs on pushed `v*` tags and needs a GitHub remote.
 
@@ -645,7 +606,6 @@ ThunderNet/
 ├── .github/workflows/          Tag-driven release workflow
 ├── default.project.json        Package project (builds the .rbxm)
 ├── dev.project.json            Development place project (src + examples + tests)
-├── wally.toml                  Wally package manifest
 ├── VERSION                     Release version
 ├── LICENSE                     MIT
 ├── BENCHMARKS-SIMPLE.md        Beginner-friendly benchmark guide

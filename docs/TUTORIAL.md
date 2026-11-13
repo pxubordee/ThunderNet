@@ -17,43 +17,17 @@ The complete API is in [API.md](API.md).
 
 ## Step 0 — Install ThunderNet
 
-### Easiest: drag and drop
+ThunderNet is distributed as a single `.rbxm` on GitHub Releases.
 
-1. Download the latest `ThunderNet-<version>.rbxm` from
-   [GitHub Releases](https://github.com/pxubordee/ThunderNet/releases/latest).
-2. Open Roblox Studio and your game.
-3. Drag the `.rbxm` into **Explorer → ReplicatedStorage**.
-4. Rename it to **ThunderNet** if Studio added a suffix.
-5. You should see a `ModuleScript` named `ThunderNet` containing `Core`,
-   `Features`, `Security`, and other folders.
+1. Open the [latest GitHub Release](https://github.com/pxubordee/ThunderNet/releases/latest).
+2. Download `ThunderNet-<version>.rbxm`.
+3. In Studio, open **Explorer**, select **ReplicatedStorage**, and drag the file
+   in.
+4. Confirm a `ModuleScript` named `ThunderNet` exists with `Core`, `Features`,
+   `Security`, `Transport`, `Utilities`, and `Types` folders.
 
-No Rojo or Wally is required for this option.
-
-### With Rojo
-
-Use the development project:
-
-```bash
-rojo serve dev.project.json
-```
-
-Connect with the Rojo plugin. This maps `src/` to
-`ReplicatedStorage.ThunderNet` and also adds examples and tests.
-
-### With Wally
-
-After the package is published to Wally, add the dependency to your `wally.toml`:
-
-```toml
-[dependencies]
-ThunderNet = "pxubordee/thundernet@0.2.0"
-```
-
-Then run `wally install` and require `ReplicatedStorage.Packages.ThunderNet`
-after mapping the Wally `Packages` folder.
-
-> **One session per side:** create the server session before clients connect.
-> Use the same `Name` on both sides (the default is `"ThunderNet"`).
+This is the only supported installation method. The source repository is for
+developing the framework itself.
 
 ---
 

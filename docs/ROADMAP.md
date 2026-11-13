@@ -19,7 +19,7 @@ and defaults, and add power behind optional modules and configuration.
 - Milestone 1: presets, Init/typed helpers, FireMany/FireExcept, queue caps, Promise.all, validator and permission helpers
 - Milestone 2 (partial): per-request RPC options, protocol/config handshake validation, serializer native fallback, error/drop/rate-limit hooks, per-event inbound middleware, outbound event middleware
 - Roblox Studio Play Solo benchmark sample and beginner-friendly benchmark guide
-- Draggable `.rbxm` packaging, Wally manifest, MIT license, release workflow
+- Draggable `.rbxm` packaging, MIT license, release workflow
 
 ## Milestone 1 — speed, safety and ergonomics (shipped)
 
